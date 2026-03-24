@@ -2,3 +2,9 @@ venv/
 __pycache__/
 *.pyc
 .env
+
+# CI生成物（一時ファイル）
+logs/
+output/rental_search_results_*.xlsx
+output/verification_*.csv
+~$*

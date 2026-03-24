@@ -120,6 +120,20 @@ CREATE TABLE IF NOT EXISTS notifications (
     delivery_status TEXT
 );
 
+-- 掲載検証結果
+CREATE TABLE IF NOT EXISTS listing_verifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    listing_id INTEGER REFERENCES listings(id),
+    actual_name TEXT,
+    actual_address TEXT,
+    name_score REAL,
+    address_match INTEGER,
+    status TEXT,
+    reason TEXT,
+    verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(listing_id)
+);
+
 -- インデックス
 CREATE INDEX IF NOT EXISTS idx_listings_building ON listings(building_id);
 CREATE INDEX IF NOT EXISTS idx_listings_site ON listings(site_name);
@@ -128,6 +142,7 @@ CREATE INDEX IF NOT EXISTS idx_listings_first_seen ON listings(first_seen_at);
 CREATE INDEX IF NOT EXISTS idx_buildings_ward ON buildings(ward);
 CREATE INDEX IF NOT EXISTS idx_search_log_run ON search_log(run_id);
 CREATE INDEX IF NOT EXISTS idx_search_log_building_site ON search_log(building_id, site_name);
+CREATE INDEX IF NOT EXISTS idx_verifications_status ON listing_verifications(status);
 """
 
 
@@ -348,3 +363,70 @@ def get_search_stats(conn: sqlite3.Connection) -> dict:
     stats["new_today"] = row["cnt"]
 
     return stats
+
+
+# --- Verification ---
+
+def get_active_suumo_listings(conn: sqlite3.Connection,
+                              ward: Optional[str] = None,
+                              building_name: Optional[str] = None) -> list[sqlite3.Row]:
+    """検証対象のアクティブSUUMO掲載を取得"""
+    sql = """SELECT l.id AS listing_id, l.listing_url, l.listing_title,
+                    b.id AS building_id, b.building_name, b.address_base, b.ward
+             FROM listings l
+             JOIN buildings b ON l.building_id = b.id
+             WHERE l.is_active = 1 AND l.site_name = 'suumo'"""
+    params = []
+    if ward:
+        sql += " AND b.ward = ?"
+        params.append(ward)
+    if building_name:
+        sql += " AND b.building_name LIKE ?"
+        params.append(f"%{building_name}%")
+    sql += " ORDER BY b.ward, b.building_name"
+    return conn.execute(sql, params).fetchall()
+
+
+def get_unverified_suumo_listings(conn: sqlite3.Connection,
+                                  ward: Optional[str] = None,
+                                  building_name: Optional[str] = None) -> list[sqlite3.Row]:
+    """未検証のアクティブSUUMO掲載を取得"""
+    sql = """SELECT l.id AS listing_id, l.listing_url, l.listing_title,
+                    b.id AS building_id, b.building_name, b.address_base, b.ward
+             FROM listings l
+             JOIN buildings b ON l.building_id = b.id
+             LEFT JOIN listing_verifications v ON l.id = v.listing_id
+             WHERE l.is_active = 1 AND l.site_name = 'suumo'
+               AND v.id IS NULL"""
+    params = []
+    if ward:
+        sql += " AND b.ward = ?"
+        params.append(ward)
+    if building_name:
+        sql += " AND b.building_name LIKE ?"
+        params.append(f"%{building_name}%")
+    sql += " ORDER BY b.ward, b.building_name"
+    return conn.execute(sql, params).fetchall()
+
+
+def upsert_verification(conn: sqlite3.Connection, listing_id: int,
+                        actual_name: str, actual_address: str,
+                        name_score: float, address_match: bool,
+                        status: str, reason: str):
+    """検証結果を挿入または更新"""
+    conn.execute(
+        """INSERT INTO listing_verifications
+           (listing_id, actual_name, actual_address, name_score,
+            address_match, status, reason, verified_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(listing_id) DO UPDATE SET
+             actual_name = excluded.actual_name,
+             actual_address = excluded.actual_address,
+             name_score = excluded.name_score,
+             address_match = excluded.address_match,
+             status = excluded.status,
+             reason = excluded.reason,
+             verified_at = excluded.verified_at""",
+        (listing_id, actual_name, actual_address, name_score,
+         int(address_match), status, reason, datetime.now().isoformat()),
+    )

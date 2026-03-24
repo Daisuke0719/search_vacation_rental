@@ -66,6 +66,10 @@ DIRECT_SCRAPE_SITES = ["suumo", "homes"]
 PLAYWRIGHT_HEADLESS = True
 PLAYWRIGHT_TIMEOUT = 30000  # ms
 
+# Notion API
+NOTION_API_KEY = os.getenv("NOTION_API_KEY", "")
+NOTION_DATABASE_ID = os.getenv("NOTION_DATABASE_ID", "")
+
 # ログ設定
 LOG_DIR = BASE_DIR / "logs"
 LOG_DIR.mkdir(exist_ok=True)

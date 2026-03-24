@@ -1,0 +1,24 @@
+# CI/CD用の軽量依存パッケージ
+# streamlit, matplotlib, seaborn, plotly, scrapy, selenium は除外
+
+# Web Scraping
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+playwright>=1.40.0
+httpx>=0.25.0
+aiohttp>=3.9.0
+
+# Data
+pandas>=2.1.0
+numpy>=1.26.0
+openpyxl>=3.1.0
+xlsxwriter>=3.1.0
+
+# Notifications
+line-bot-sdk>=3.5.0
+
+# Utilities
+python-dotenv>=1.0.0
+tqdm>=4.66.0
+fake-useragent>=1.4.0
