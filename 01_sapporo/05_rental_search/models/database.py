@@ -321,14 +321,14 @@ def get_new_listings_today(conn: sqlite3.Connection) -> list[sqlite3.Row]:
 
 
 def get_all_active_listings(conn: sqlite3.Connection) -> list[sqlite3.Row]:
-    """全アクティブ掲載を取得（検証で mismatch 判定されたものは除外）"""
+    """全アクティブ掲載を取得（検証で mismatch/suspicious 判定されたものは除外）"""
     return conn.execute(
         """SELECT l.*, b.building_name, b.ward, b.address_base
            FROM listings l
            JOIN buildings b ON l.building_id = b.id
            LEFT JOIN listing_verifications v ON l.id = v.listing_id
            WHERE l.is_active = 1
-             AND (v.status IS NULL OR v.status != 'mismatch')
+             AND (v.status IS NULL OR v.status NOT IN ('mismatch', 'suspicious'))
            ORDER BY b.ward, b.building_name, l.site_name""",
     ).fetchall()
 
