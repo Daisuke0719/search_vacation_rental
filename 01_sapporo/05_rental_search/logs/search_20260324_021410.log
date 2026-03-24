@@ -1,0 +1,22 @@
+2026-03-24 02:14:10,878 [INFO] __main__: === 賃貸掲載リサーチ開始 ===
+2026-03-24 02:14:10,888 [INFO] __main__: Loading Excel and extracting building names...
+2026-03-24 02:14:12,111 [INFO] __main__: Extracted 635 unique buildings
+2026-03-24 02:14:12,111 [INFO] __main__: Limited to 3 buildings
+2026-03-24 02:14:12,126 [INFO] __main__: Registered 3 buildings in DB
+2026-03-24 02:14:12,133 [INFO] __main__: Starting run 3
+2026-03-24 02:14:12,143 [INFO] __main__: === Searching suumo (3 buildings) ===
+2026-03-24 02:14:12,143 [INFO] __main__: [suumo] Using direct scraping
+2026-03-24 02:14:13,656 [INFO] scrapers.base: [suumo] Browser started
+2026-03-24 02:14:35,982 [INFO] scrapers.suumo: [suumo] ONE'S RESIDENCE (中央区): 0 listings found
+2026-03-24 02:14:36,246 [INFO] scrapers.base: [suumo] Browser stopped
+2026-03-24 02:14:36,246 [INFO] __main__: [suumo] Done: 3 searched, 0 found, 0 new, 0 errors
+2026-03-24 02:14:36,246 [INFO] __main__: === Searching homes (3 buildings) ===
+2026-03-24 02:14:36,246 [INFO] __main__: [homes] Using direct scraping
+2026-03-24 02:14:36,945 [INFO] scrapers.base: [homes] Browser started
+2026-03-24 02:14:41,856 [INFO] scrapers.homes: [homes] AMSタワー (中央区): 0 listings found
+2026-03-24 02:14:47,886 [INFO] scrapers.homes: [homes] モンドミオ札幌大通南2条 (中央区): 0 listings found
+2026-03-24 02:14:55,202 [INFO] scrapers.homes: [homes] ONE'S RESIDENCE (中央区): 0 listings found
+2026-03-24 02:14:55,690 [INFO] scrapers.base: [homes] Browser stopped
+2026-03-24 02:14:55,690 [INFO] __main__: [homes] Done: 3 searched, 0 found, 0 new, 0 errors
+2026-03-24 02:14:55,714 [INFO] __main__: === Run complete: 6 searched, 0 found, 0 new, 0 errors ===
+2026-03-24 02:14:55,714 [INFO] __main__: === 完了 ===

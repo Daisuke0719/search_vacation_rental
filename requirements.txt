@@ -1,0 +1,29 @@
+# Web Scraping
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+selenium>=4.15.0
+playwright>=1.40.0
+scrapy>=2.11.0
+httpx>=0.25.0
+aiohttp>=3.9.0
+
+# Data Analysis
+pandas>=2.1.0
+numpy>=1.26.0
+matplotlib>=3.8.0
+seaborn>=0.13.0
+plotly>=5.18.0
+openpyxl>=3.1.0
+xlsxwriter>=3.1.0
+
+# Dashboard
+streamlit>=1.30.0
+
+# Notifications
+line-bot-sdk>=3.5.0
+
+# Utilities
+python-dotenv>=1.0.0
+tqdm>=4.66.0
+fake-useragent>=1.4.0

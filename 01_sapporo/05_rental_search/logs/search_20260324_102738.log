@@ -1,0 +1,100 @@
+2026-03-24 10:27:38,442 [INFO] __main__: === 賃貸掲載リサーチ開始 ===
+2026-03-24 10:27:38,509 [INFO] __main__: Loaded 611 buildings from C:\Users\daisu\Documents\民泊\01_sapporo\05_rental_search\output\buildings.csv
+2026-03-24 10:27:38,509 [INFO] __main__: Filtered to 285 buildings in 中央区
+2026-03-24 10:27:38,529 [INFO] __main__: Registered 285 buildings in DB
+2026-03-24 10:27:38,537 [INFO] __main__: Starting run 7
+2026-03-24 10:27:38,547 [INFO] __main__: === Searching suumo (285 buildings) ===
+2026-03-24 10:27:38,547 [INFO] __main__: [suumo] Using direct scraping
+2026-03-24 10:27:39,772 [INFO] scrapers.base: [suumo] Browser started
+2026-03-24 10:27:54,475 [INFO] scrapers.suumo: [suumo] ONE'S RESIDENCE (中央区): 0 listings found
+2026-03-24 10:28:01,608 [INFO] scrapers.suumo: [suumo] ノーザンヒルズ南6条 (中央区): 0 listings found
+2026-03-24 10:28:06,470 [INFO] scrapers.suumo: [suumo] サンコート円山ガーデンヒルズ (中央区): 1 listings found
+2026-03-24 10:28:29,083 [INFO] scrapers.suumo: [suumo] WELLZ N5 (中央区): 1 listings found
+2026-03-24 10:28:48,506 [INFO] scrapers.suumo: [suumo] ヴァンヴェール南4条 (中央区): 0 listings found
+2026-03-24 10:28:57,818 [INFO] scrapers.suumo: [suumo] 札幌ビオス館 (中央区): 1 listings found
+2026-03-24 10:29:09,458 [INFO] scrapers.suumo: [suumo] スペース南4条 (中央区): 0 listings found
+2026-03-24 10:29:40,874 [INFO] scrapers.suumo: [suumo] サンコート大通 (中央区): 1 listings found
+2026-03-24 10:29:46,889 [INFO] scrapers.suumo: [suumo] セレナール南13条 (中央区): 1 listings found
+2026-03-24 10:29:50,750 [INFO] scrapers.suumo: [suumo] サンコート南6条壱番館 (中央区): 1 listings found
+2026-03-24 10:30:04,517 [INFO] scrapers.suumo: [suumo] イリオス中島公園 (中央区): 1 listings found
+2026-03-24 10:30:23,151 [INFO] scrapers.suumo: [suumo] パークレジデンス (中央区): 6 listings found
+2026-03-24 10:30:32,669 [INFO] scrapers.suumo: [suumo] ZABOHILLS (中央区): 1 listings found
+2026-03-24 10:30:37,248 [INFO] scrapers.suumo: [suumo] エンノレジデンスS8 (中央区): 2 listings found
+2026-03-24 10:30:50,455 [INFO] scrapers.suumo: [suumo] ルミエール札幌 (中央区): 1 listings found
+2026-03-24 10:31:05,225 [INFO] scrapers.suumo: [suumo] サンコート南8条 (中央区): 0 listings found
+2026-03-24 10:31:20,057 [INFO] scrapers.suumo: [suumo] グランドサクセス北6条 (中央区): 1 listings found
+2026-03-24 10:31:23,390 [INFO] scrapers.suumo: [suumo] GLASS山鼻EAST (中央区): 2 listings found
+2026-03-24 10:32:27,902 [INFO] scrapers.suumo: [suumo] エクセレントハウス中島公園 (中央区): 1 listings found
+2026-03-24 10:32:37,278 [INFO] scrapers.suumo: [suumo] ルーブル4条館 (中央区): 0 listings found
+2026-03-24 10:32:40,250 [INFO] scrapers.suumo: [suumo] PEOPLE NoIII (中央区): 0 listings found
+2026-03-24 10:33:05,506 [INFO] scrapers.suumo: [suumo] J1すすきのビル (中央区): 0 listings found
+2026-03-24 10:33:11,902 [INFO] scrapers.suumo: [suumo] ドミローレル第8 (中央区): 1 listings found
+2026-03-24 10:33:28,305 [INFO] scrapers.suumo: [suumo] パークヒルズ中央12 (中央区): 0 listings found
+2026-03-24 10:33:32,307 [INFO] scrapers.suumo: [suumo] サンライズ (中央区): 0 listings found
+2026-03-24 10:34:12,792 [INFO] scrapers.suumo: [suumo] ラ・ソレイユ南2条 (中央区): 0 listings found
+2026-03-24 10:34:26,981 [INFO] scrapers.suumo: [suumo] サウスフォーI (中央区): 1 listings found
+2026-03-24 10:34:31,835 [INFO] scrapers.suumo: [suumo] Giulietta (中央区): 0 listings found
+2026-03-24 10:34:34,768 [INFO] scrapers.suumo: [suumo] グランドサクセス512 (中央区): 0 listings found
+2026-03-24 10:34:38,346 [INFO] scrapers.suumo: [suumo] R-FREE南5西12 (中央区): 0 listings found
+2026-03-24 10:34:51,898 [INFO] scrapers.suumo: [suumo] ドエル札幌南6条I (中央区): 0 listings found
+2026-03-24 10:35:45,907 [INFO] scrapers.suumo: [suumo] ラ クレシュール (中央区): 1 listings found
+2026-03-24 10:36:02,321 [INFO] scrapers.suumo: [suumo] イーストコートIII (中央区): 1 listings found
+2026-03-24 10:36:19,573 [INFO] scrapers.suumo: [suumo] ジュネス大通 (中央区): 1 listings found
+2026-03-24 10:36:24,737 [INFO] scrapers.suumo: [suumo] TEN CITY (中央区): 0 listings found
+2026-03-24 10:36:35,311 [INFO] scrapers.suumo: [suumo] コメンスNo.1 (中央区): 0 listings found
+2026-03-24 10:36:43,786 [INFO] scrapers.suumo: [suumo] イルフィオーレ (中央区): 1 listings found
+2026-03-24 10:36:57,160 [INFO] scrapers.suumo: [suumo] HILLS SAPPORO (中央区): 2 listings found
+2026-03-24 10:37:06,573 [INFO] scrapers.suumo: [suumo] コーポハシモト (中央区): 1 listings found
+2026-03-24 10:37:15,453 [INFO] scrapers.suumo: [suumo] Berlinetta312 (中央区): 1 listings found
+2026-03-24 10:37:37,801 [INFO] scrapers.suumo: [suumo] サウスフォーII (中央区): 1 listings found
+2026-03-24 10:37:45,936 [INFO] scrapers.suumo: [suumo] レスト5.2 (中央区): 0 listings found
+2026-03-24 10:37:50,609 [INFO] scrapers.suumo: [suumo] クラシックハイム (中央区): 1 listings found
+2026-03-24 10:38:00,528 [INFO] scrapers.suumo: [suumo] ドエル札幌南6条II (中央区): 0 listings found
+2026-03-24 10:38:10,578 [INFO] scrapers.suumo: [suumo] シティマンション五十嵐 (中央区): 1 listings found
+2026-03-24 10:38:20,594 [INFO] scrapers.suumo: [suumo] ステージ南8条I (中央区): 0 listings found
+2026-03-24 10:38:42,221 [INFO] scrapers.suumo: [suumo] ライオンズシティ大通公園 (中央区): 1 listings found
+2026-03-24 10:38:56,376 [INFO] scrapers.suumo: [suumo] アジュールコートN5 (中央区): 0 listings found
+2026-03-24 10:39:26,232 [INFO] scrapers.suumo: [suumo] Ferien (中央区): 0 listings found
+2026-03-24 10:39:29,986 [INFO] scrapers.suumo: [suumo] BLUE FOREST (中央区): 0 listings found
+2026-03-24 10:39:36,658 [INFO] scrapers.suumo: [suumo] JOW2ビル (中央区): 0 listings found
+2026-03-24 10:40:03,478 [INFO] scrapers.suumo: [suumo] 山岸ビル (中央区): 1 listings found
+2026-03-24 10:40:08,580 [INFO] scrapers.suumo: [suumo] Lan (中央区): 2 listings found
+2026-03-24 10:40:16,715 [INFO] scrapers.suumo: [suumo] サンシャイン・シティー21 (中央区): 0 listings found
+2026-03-24 10:40:37,446 [INFO] scrapers.suumo: [suumo] ウエスト12 (中央区): 0 listings found
+2026-03-24 10:42:20,692 [INFO] scrapers.suumo: [suumo] メープル桑園駅 (中央区): 1 listings found
+2026-03-24 10:42:36,963 [INFO] scrapers.suumo: [suumo] イーストコートI (中央区): 3 listings found
+2026-03-24 10:42:48,086 [INFO] scrapers.suumo: [suumo] ナムズビル (中央区): 1 listings found
+2026-03-24 10:43:00,802 [INFO] scrapers.suumo: [suumo] サンコート桑園ガーデンヒルズ (中央区): 1 listings found
+2026-03-24 10:43:21,194 [INFO] scrapers.suumo: [suumo] RT2 (中央区): 0 listings found
+2026-03-24 10:43:25,977 [INFO] scrapers.suumo: [suumo] ストラダーレ (中央区): 1 listings found
+2026-03-24 10:43:35,802 [INFO] scrapers.suumo: [suumo] AJITO S11 (中央区): 0 listings found
+2026-03-24 10:43:41,885 [INFO] scrapers.suumo: [suumo] パークアベニュー中島 (中央区): 1 listings found
+2026-03-24 10:43:51,225 [INFO] scrapers.suumo: [suumo] Amadeus中島公園 (中央区): 0 listings found
+2026-03-24 10:43:56,729 [INFO] scrapers.suumo: [suumo] アンビエンテ131 (中央区): 0 listings found
+2026-03-24 10:44:26,934 [INFO] scrapers.suumo: [suumo] シェール松岡 (中央区): 1 listings found
+2026-03-24 10:44:37,873 [INFO] scrapers.suumo: [suumo] ラムール山鼻 (中央区): 1 listings found
+2026-03-24 10:44:42,323 [INFO] scrapers.suumo: [suumo] ロイヤルハイツ (中央区): 3 listings found
+2026-03-24 10:44:51,873 [INFO] scrapers.suumo: [suumo] クリスタルパレス95 (中央区): 1 listings found
+2026-03-24 10:45:12,527 [INFO] scrapers.suumo: [suumo] 阿部亮財団ビル (中央区): 1 listings found
+2026-03-24 10:45:15,811 [INFO] scrapers.suumo: [suumo] Berlinetta 312 (中央区): 1 listings found
+2026-03-24 10:45:34,769 [INFO] scrapers.suumo: [suumo] サンコート南4条 (中央区): 1 listings found
+2026-03-24 10:45:39,481 [INFO] scrapers.suumo: [suumo] 木村ビル (中央区): 0 listings found
+2026-03-24 10:45:42,946 [INFO] scrapers.suumo: [suumo] MTガーデン円山 (中央区): 0 listings found
+2026-03-24 10:46:06,915 [INFO] scrapers.suumo: [suumo] ル・ソレイユ (中央区): 2 listings found
+2026-03-24 10:46:12,112 [INFO] scrapers.suumo: [suumo] サンステージS5W12 (中央区): 0 listings found
+2026-03-24 10:46:34,038 [INFO] scrapers.suumo: [suumo] オパス南5条 (中央区): 0 listings found
+2026-03-24 10:46:44,382 [INFO] scrapers.suumo: [suumo] オルセー南6条 (中央区): 0 listings found
+2026-03-24 10:46:48,339 [INFO] scrapers.suumo: [suumo] シティハイツ南6条 (中央区): 1 listings found
+2026-03-24 10:46:54,013 [INFO] scrapers.suumo: [suumo] DPレジデンス南円山 (中央区): 1 listings found
+2026-03-24 10:47:48,543 [INFO] scrapers.suumo: [suumo] リバティインハイム (中央区): 1 listings found
+2026-03-24 10:48:02,552 [INFO] scrapers.suumo: [suumo] インペリアルエバー中島公園II (中央区): 1 listings found
+2026-03-24 10:48:17,799 [INFO] scrapers.suumo: [suumo] ローズマリー (中央区): 1 listings found
+2026-03-24 10:49:06,328 [INFO] scrapers.suumo: [suumo] ローヤルハイツ8.8 (中央区): 0 listings found
+2026-03-24 10:50:05,623 [INFO] scrapers.suumo: [suumo] ハル・レジデンス (中央区): 0 listings found
+2026-03-24 10:50:21,111 [INFO] scrapers.suumo: [suumo] 管財ビル (中央区): 1 listings found
+2026-03-24 10:50:43,025 [INFO] scrapers.suumo: [suumo] D×Apartment N3E6 (中央区): 1 listings found
+2026-03-24 10:51:02,261 [INFO] scrapers.base: [suumo] Browser stopped
+2026-03-24 10:51:02,261 [INFO] __main__: [suumo] Done: 285 searched, 64 found, 37 new, 0 errors
+2026-03-24 10:51:02,274 [INFO] __main__: === Run complete: 285 searched, 64 found, 37 new, 0 errors ===
+2026-03-24 10:51:02,595 [INFO] __main__: Excel exported to C:\Users\daisu\Documents\民泊\01_sapporo\05_rental_search\output\rental_search_results_20260324_105102.xlsx
+2026-03-24 10:51:02,596 [INFO] __main__: === 完了 ===

@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>賃貸物件マップ - 札幌</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif; }
+
+#map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 1; }
+
+/* サイドバー */
+#sidebar {
+  position: absolute; top: 0; left: 0; bottom: 0; width: 360px;
+  background: #fff; z-index: 1000; overflow: hidden;
+  display: flex; flex-direction: column;
+  box-shadow: 2px 0 12px rgba(0,0,0,0.15);
+  transition: transform 0.3s ease;
+}
+#sidebar.collapsed { transform: translateX(-360px); }
+
+#sidebar-toggle {
+  position: absolute; top: 12px; z-index: 1001;
+  left: 360px; transition: left 0.3s ease;
+  background: #fff; border: none; border-radius: 0 8px 8px 0;
+  padding: 10px 8px; cursor: pointer;
+  box-shadow: 2px 2px 6px rgba(0,0,0,0.2);
+  font-size: 18px; line-height: 1;
+}
+#sidebar.collapsed ~ #sidebar-toggle { left: 0; }
+
+#sidebar-header {
+  padding: 16px; background: #2c3e50; color: #fff;
+  flex-shrink: 0;
+}
+#sidebar-header h1 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+#count-badge {
+  font-size: 13px; opacity: 0.85;
+}
+
+#property-list {
+  flex: 1; overflow-y: auto; padding: 0;
+}
+.property-item {
+  padding: 12px 16px; border-bottom: 1px solid #eee;
+  cursor: pointer; transition: background 0.15s;
+}
+.property-item:hover { background: #f0f7ff; }
+.property-item.active { background: #e3f2fd; border-left: 3px solid #2196F3; }
+.prop-name {
+  font-size: 14px; font-weight: 600; color: #333;
+  display: flex; align-items: center; gap: 6px;
+}
+.prop-name .dot {
+  display: inline-block; width: 10px; height: 10px;
+  border-radius: 50%; flex-shrink: 0;
+}
+.prop-meta {
+  font-size: 12px; color: #666; margin-top: 3px;
+  display: flex; gap: 12px; flex-wrap: wrap;
+}
+.prop-meta span { white-space: nowrap; }
+
+/* フィルタパネル */
+#filter-panel {
+  position: absolute; top: 12px; right: 12px; z-index: 1000;
+  background: #fff; border-radius: 10px; padding: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+  min-width: 240px; max-width: 300px;
+  font-size: 13px;
+}
+#filter-panel h3 {
+  font-size: 14px; margin-bottom: 12px; color: #2c3e50;
+  display: flex; justify-content: space-between; align-items: center;
+}
+#filter-toggle {
+  background: none; border: none; cursor: pointer;
+  font-size: 16px; color: #666;
+}
+#filter-body { transition: max-height 0.3s ease; overflow: hidden; }
+#filter-body.collapsed { max-height: 0 !important; }
+
+.filter-section { margin-bottom: 14px; }
+.filter-section label {
+  display: flex; align-items: center; gap: 6px;
+  padding: 3px 0; cursor: pointer; color: #444;
+}
+.filter-section input[type="checkbox"] { accent-color: #2196F3; }
+.filter-label { font-size: 12px; font-weight: 600; color: #888; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+.rent-slider-wrap { display: flex; flex-direction: column; gap: 6px; }
+.rent-slider-wrap input[type="range"] { width: 100%; accent-color: #2196F3; }
+.rent-values { display: flex; justify-content: space-between; font-size: 12px; color: #666; }
+
+#reset-btn {
+  width: 100%; padding: 7px; background: #f5f5f5; border: 1px solid #ddd;
+  border-radius: 6px; cursor: pointer; font-size: 12px; color: #555;
+  transition: background 0.15s;
+}
+#reset-btn:hover { background: #e8e8e8; }
+
+/* 凡例 */
+#legend {
+  position: absolute; bottom: 24px; right: 12px; z-index: 1000;
+  background: rgba(255,255,255,0.95); border-radius: 8px; padding: 12px 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  font-size: 12px;
+}
+#legend h4 { font-size: 12px; margin-bottom: 6px; color: #555; }
+.legend-item {
+  display: flex; align-items: center; gap: 6px; padding: 2px 0;
+}
+.legend-dot {
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.8);
+  box-shadow: 0 0 3px rgba(0,0,0,0.3);
+}
+
+/* ポップアップ */
+.leaflet-popup-content-wrapper {
+  border-radius: 10px !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2) !important;
+}
+.leaflet-popup-content {
+  margin: 14px 16px !important;
+  font-size: 13px; line-height: 1.6;
+  min-width: 240px;
+}
+.popup-title {
+  font-size: 15px; font-weight: 700; color: #2c3e50;
+  margin-bottom: 8px; border-bottom: 2px solid #eee; padding-bottom: 6px;
+}
+.popup-row {
+  display: flex; gap: 6px; padding: 2px 0;
+}
+.popup-row .label { color: #888; min-width: 60px; flex-shrink: 0; }
+.popup-row .value { color: #333; font-weight: 500; }
+.popup-rent {
+  font-size: 18px; font-weight: 700; color: #e74c3c;
+  margin: 6px 0;
+}
+.popup-rent .mgmt { font-size: 12px; color: #999; font-weight: 400; }
+.popup-link {
+  display: block; margin-top: 10px; padding: 8px 0;
+  background: #4CAF50; color: #fff !important; text-align: center;
+  text-decoration: none; border-radius: 6px; font-size: 13px; font-weight: 600;
+  transition: background 0.15s;
+}
+.popup-link:hover { background: #43A047; }
+
+/* 未マッピングテーブル */
+#unmapped-panel {
+  display: none; position: absolute; bottom: 0; left: 0; right: 0;
+  z-index: 1000; background: #fff; max-height: 200px;
+  overflow-y: auto; box-shadow: 0 -2px 12px rgba(0,0,0,0.15);
+  padding: 12px 20px; font-size: 12px;
+}
+#unmapped-panel h4 { margin-bottom: 8px; color: #e74c3c; }
+#unmapped-panel table { width: 100%; border-collapse: collapse; }
+#unmapped-panel th, #unmapped-panel td {
+  padding: 4px 8px; text-align: left; border-bottom: 1px solid #eee;
+}
+
+/* レスポンシブ */
+@media (max-width: 768px) {
+  #sidebar { width: 100%; }
+  #sidebar.collapsed { transform: translateX(-100%); }
+  #sidebar-toggle { left: 100%; }
+  #sidebar.collapsed ~ #sidebar-toggle { left: 0; }
+  #filter-panel { top: 8px; right: 8px; min-width: 200px; max-width: 240px; padding: 12px; }
+  #legend { bottom: 16px; right: 8px; }
+}
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<!-- サイドバー -->
+<div id="sidebar">
+  <div id="sidebar-header">
+    <h1>賃貸物件一覧</h1>
+    <div id="count-badge">表示中: <span id="visible-count">0</span> / <span id="total-count">0</span>件</div>
+  </div>
+  <div id="property-list"></div>
+</div>
+<button id="sidebar-toggle" title="物件リスト切替">☰</button>
+
+<!-- フィルタパネル -->
+<div id="filter-panel">
+  <h3>フィルタ <button id="filter-toggle" title="折りたたみ">▼</button></h3>
+  <div id="filter-body">
+    <div class="filter-section">
+      <div class="filter-label">間取り</div>
+      <div id="layout-filters"></div>
+    </div>
+    <div class="filter-section">
+      <div class="filter-label">家賃</div>
+      <div class="rent-slider-wrap">
+        <input type="range" id="rent-min" min="20000" max="940000" value="20000" step="10000">
+        <input type="range" id="rent-max" min="20000" max="940000" value="940000" step="10000">
+        <div class="rent-values">
+          <span id="rent-min-label">¥20,000</span>
+          <span>〜</span>
+          <span id="rent-max-label">¥940,000</span>
+        </div>
+      </div>
+    </div>
+    <button id="reset-btn">すべて表示</button>
+  </div>
+</div>
+
+<!-- 凡例 -->
+<div id="legend">
+  <h4>間取り</h4>
+  <div id="legend-items"></div>
+</div>
+
+<!-- 未マッピング -->
+<div id="unmapped-panel">
+  <h4>⚠ 地図に表示できなかった物件</h4>
+  <table id="unmapped-table"><thead><tr><th>建物名</th><th>住所</th><th>家賃</th><th>間取り</th><th>リンク</th></tr></thead><tbody></tbody></table>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+(function() {
+  const properties = [{"lat": 43.055187, "lng": 141.339737, "building": "Berlinetta312", "title": "ｂｅｒｌｉｎｅｔｔａ３１２（berlinetta312）", "address": "北海道札幌市中央区南3条西12丁目325-5", "ward": "中央区", "rent": 75000, "rent_fmt": "¥75,000", "mgmt_fee": "¥5,000", "deposit": "-", "key_money": "-", "layout": "1LDK", "area": "35.0㎡", "floor": "4階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000105655015/?bc=100496745486", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.050816, "lng": 141.327469, "building": "DPレジデンス南円山", "title": "仮)DPレジデンス南円山", "address": "北海道札幌市中央区南6条西20丁目1-14", "ward": "中央区", "rent": 100000, "rent_fmt": "¥100,000", "mgmt_fee": "¥5,000", "deposit": "-", "key_money": "10万円", "layout": "2LDK", "area": "45.3㎡", "floor": "2階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000100544426/?bc=100482735038", "category": "2K-2LDK", "color": "#e67e22"}, {"lat": 43.067131, "lng": 141.364624, "building": "D×Apartment N3E6", "title": "D×Apartment N3E6　(N3E6C棟)", "address": "北海道札幌市中央区北3条東6丁目356-3", "ward": "中央区", "rent": 76000, "rent_fmt": "¥76,000", "mgmt_fee": "¥5,000", "deposit": "-", "key_money": "-", "layout": "1LDK", "area": "33.8㎡", "floor": "3階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000102920856/?bc=100491705184", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.044334, "lng": 141.340958, "building": "GLASS山鼻EAST", "title": "グラス山鼻イースト（GLASS山鼻EAST）", "address": "北海道札幌市中央区南11条西12丁目2-12", "ward": "中央区", "rent": 118000, "rent_fmt": "¥118,000", "mgmt_fee": "¥5,000", "deposit": "11.8万円", "key_money": "-", "layout": "3LDK", "area": "71.3㎡", "floor": "5階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000090672048/?bc=100449685284", "category": "3LDK+", "color": "#e74c3c"}, {"lat": 43.0442751, "lng": 141.3410121, "building": "GLASS山鼻EAST", "title": "GLASS山鼻EAST", "address": "北海道札幌市中央区南11条西12丁目2-12", "ward": "中央区", "rent": 118000, "rent_fmt": "¥118,000", "mgmt_fee": "¥5,000", "deposit": "11.8万円", "key_money": "-", "layout": "3LDK", "area": "71.3㎡", "floor": "5階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000090652688/?bc=100448771971", "category": "3LDK+", "color": "#e74c3c"}, {"lat": 43.057392, "lng": 141.347229, "building": "HILLS SAPPORO", "title": "Hills SapporoIII", "address": "北海道札幌市中央区南2条西7丁目9-5", "ward": "中央区", "rent": 57000, "rent_fmt": "¥57,000", "mgmt_fee": "¥3,000", "deposit": "5.7万円", "key_money": "-", "layout": "1LDK", "area": "34.4㎡", "floor": "2階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000031872987/?bc=100496485895", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.0573331, "lng": 141.3472831, "building": "HILLS SAPPORO", "title": "HillsSapporo3", "address": "北海道札幌市中央区南2条西7丁目9-5", "ward": "中央区", "rent": 62000, "rent_fmt": "¥62,000", "mgmt_fee": "¥3,000", "deposit": "6.2万円", "key_money": "-", "layout": "1LDK", "area": "34.4㎡", "floor": "2階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000105847711/?bc=100496587080", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.058113, "lng": 141.360901, "building": "Lan", "title": "Blanc Bonheur Soen", "address": "北海道札幌市中央区南3条東3丁目5-1", "ward": "中央区", "rent": 49000, "rent_fmt": "¥49,000", "mgmt_fee": "¥5,000", "deposit": "-", "key_money": "4.9万円", "layout": "1DK", "area": "26.6㎡", "floor": "3階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000105502322/?bc=100497342001", "category": "1R-1DK", "color": "#3498db"}, {"lat": 43.0580541, "lng": 141.3609551, "building": "Lan", "title": "Flandre桑園", "address": "北海道札幌市中央区南3条東3丁目5-1", "ward": "中央区", "rent": 59000, "rent_fmt": "¥59,000", "mgmt_fee": "¥4,000", "deposit": "5.9万円", "key_money": "-", "layout": "1LDK", "area": "30.4㎡", "floor": "4階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000101448418/?bc=100487422010", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.065899, "lng": 141.342056, "building": "WELLZ N5", "title": "WELLZ　N5", "address": "北海道札幌市中央区北5条西9丁目17-3", "ward": "中央区", "rent": 156000, "rent_fmt": "¥156,000", "mgmt_fee": "¥8,000", "deposit": "15.6万円", "key_money": "15.6万円", "layout": "2LDK", "area": "58.6㎡", "floor": "8階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000104254856/?bc=100484485520", "category": "2K-2LDK", "color": "#e67e22"}, {"lat": 43.054703, "lng": 141.360153, "building": "ZABOHILLS", "title": "ZABOHILLSMINAMI6JO", "address": "北海道札幌市中央区南6条東2丁目2-2", "ward": "中央区", "rent": 126000, "rent_fmt": "¥126,000", "mgmt_fee": "¥8,000", "deposit": "12.6万円", "key_money": "-", "layout": "3LDK", "area": "79.2㎡", "floor": "1階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000105823874/?bc=100496431842", "category": "3LDK+", "color": "#e74c3c"}, {"lat": 43.042061, "lng": 141.357437, "building": "イリオス中島公園", "title": "イリオス中島公園", "address": "北海道札幌市中央区南14条西1丁目1-8", "ward": "中央区", "rent": 55000, "rent_fmt": "¥55,000", "mgmt_fee": "¥5,000", "deposit": "5.5万円", "key_money": "-", "layout": "1LDK", "area": "35.3㎡", "floor": "9階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000091644450/?bc=100496546771", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.041824, "lng": 141.351349, "building": "イルフィオーレ", "title": "イルフィオーレ", "address": "北海道札幌市中央区南14条西6丁目2-8", "ward": "中央区", "rent": 90000, "rent_fmt": "¥90,000", "mgmt_fee": "¥30,000", "deposit": "-", "key_money": "-", "layout": "1LDK", "area": "40.0㎡", "floor": "2階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000105444951/?bc=100493344626", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.052048, "lng": 141.356903, "building": "インペリアルエバー中島公園II", "title": "インペリアルエバー中島公園II", "address": "北海道札幌市中央区南7条西2丁目2-30", "ward": "中央区", "rent": 53000, "rent_fmt": "¥53,000", "mgmt_fee": "¥7,000", "deposit": "5.3万円", "key_money": "-", "layout": "1LDK", "area": "32.1㎡", "floor": "3階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000104829260/?bc=100494514320", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.066547, "lng": 141.378494, "building": "イーストコートI", "title": "イーストコートIII", "address": "北海道札幌市中央区北1条東13丁目2-2", "ward": "中央区", "rent": 44000, "rent_fmt": "¥44,000", "mgmt_fee": "−", "deposit": "4.4万円", "key_money": "-", "layout": "1LDK", "area": "28.4㎡", "floor": "2階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000063572786/?bc=100496384013", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.0664881, "lng": 141.3785481, "building": "イーストコートI", "title": "イーストコートI", "address": "北海道札幌市中央区北1条東13丁目2-2", "ward": "中央区", "rent": 44000, "rent_fmt": "¥44,000", "mgmt_fee": "−", "deposit": "4.4万円", "key_money": "-", "layout": "1LDK", "area": "29.4㎡", "floor": "3階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000084913881/?bc=100447146329", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.0665567, "lng": 141.3783813, "building": "イーストコートI", "title": "イーストコートII", "address": "北海道札幌市中央区北1条東13丁目2-2", "ward": "中央区", "rent": 45000, "rent_fmt": "¥45,000", "mgmt_fee": "−", "deposit": "-", "key_money": "-", "layout": "1LDK", "area": "28.7㎡", "floor": "3階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000101873795/?bc=100467146909", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.038563, "lng": 141.354187, "building": "エクセレントハウス中島公園", "title": "エクセレントハウス中島公園１６５", "address": "北海道札幌市中央区南16条西5丁目2-3", "ward": "中央区", "rent": 40000, "rent_fmt": "¥40,000", "mgmt_fee": "¥2,000", "deposit": "-", "key_money": "-", "layout": "1K", "area": "27.1㎡", "floor": "2階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000104774975/?bc=100488526112", "category": "1R-1DK", "color": "#3498db"}, {"lat": 43.048485, "lng": 141.337799, "building": "エンノレジデンスS8", "title": "エンノレジデンスS8", "address": "北海道札幌市中央区南8条西13丁目4-25", "ward": "中央区", "rent": 71000, "rent_fmt": "¥71,000", "mgmt_fee": "¥5,000", "deposit": "-", "key_money": "-", "layout": "1LDK", "area": "34.5㎡", "floor": "3階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000104033126/?bc=100482363758", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.0484261, "lng": 141.3378531, "building": "エンノレジデンスS8", "title": "仮)エンノレジデンスS8", "address": "北海道札幌市中央区南8条西13丁目4-25", "ward": "中央区", "rent": 71000, "rent_fmt": "¥71,000", "mgmt_fee": "¥5,000", "deposit": "-", "key_money": "-", "layout": "1LDK", "area": "34.5㎡", "floor": "3階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000102277645/?bc=100463118333", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.056194, "lng": 141.362167, "building": "クラシックハイム", "title": "クラシックハイム", "address": "北海道札幌市中央区南5条東3丁目10-1", "ward": "中央区", "rent": 70000, "rent_fmt": "¥70,000", "mgmt_fee": "¥7,000", "deposit": "7万円", "key_money": "-", "layout": "1LDK", "area": "58.1㎡", "floor": "4階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000105899600/?bc=100497056076", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.056335, "lng": 141.339447, "building": "クリスタルパレス95", "title": "クリスタルパレス95", "address": "北海道札幌市中央区南2条西12丁目323番地9", "ward": "中央区", "rent": 105000, "rent_fmt": "¥105,000", "mgmt_fee": "¥5,000", "deposit": "10.5万円", "key_money": "-", "layout": "3LDK", "area": "73.2㎡", "floor": "8階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000104270637/?bc=100480697328", "category": "3LDK+", "color": "#e74c3c"}, {"lat": 43.064137, "lng": 141.317917, "building": "グランドサクセス北6条", "title": "グランドサクセス北6条", "address": "北海道札幌市中央区北6条西25丁目3-23", "ward": "中央区", "rent": 57000, "rent_fmt": "¥57,000", "mgmt_fee": "¥3,000", "deposit": "-", "key_money": "-", "layout": "1LDK", "area": "32.1㎡", "floor": "4階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000063980736/?bc=100490720444", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.059292, "lng": 141.358994, "building": "コーポハシモト", "title": "コーポハシモト", "address": "北海道札幌市中央区南2条東2丁目5-1", "ward": "中央区", "rent": 31000, "rent_fmt": "¥31,000", "mgmt_fee": "¥4,200", "deposit": "3.1万円", "key_money": "-", "layout": "1K", "area": "22.4㎡", "floor": "9階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000027268915/?bc=100486859089", "category": "1R-1DK", "color": "#3498db"}, {"lat": 43.057053, "lng": 141.359558, "building": "サウスフォーI", "title": "サウスフォーII", "address": "北海道札幌市中央区南4条東2丁目7", "ward": "中央区", "rent": 40000, "rent_fmt": "¥40,000", "mgmt_fee": "¥5,000", "deposit": "-", "key_money": "-", "layout": "1DK", "area": "24.1㎡", "floor": "9階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000101356885/?bc=100488309749", "category": "1R-1DK", "color": "#3498db"}, {"lat": 43.04895, "lng": 141.319778, "building": "サンコート円山ガーデンヒルズ", "title": "サンコート円山ガーデンヒルズ", "address": "北海道札幌市中央区南6条西26丁目4-10", "ward": "中央区", "rent": 95000, "rent_fmt": "¥95,000", "mgmt_fee": "¥8,000", "deposit": "9.5万円", "key_money": "-", "layout": "2LDK", "area": "56.5㎡", "floor": "9階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000105823875/?bc=100496564554", "category": "2K-2LDK", "color": "#e67e22"}, {"lat": 43.054577, "lng": 141.338074, "building": "サンコート南4条", "title": "サンコート南4条", "address": "北海道札幌市中央区南4条西13丁目1-38", "ward": "中央区", "rent": 68000, "rent_fmt": "¥68,000", "mgmt_fee": "¥6,000", "deposit": "-", "key_money": "-", "layout": "1LDK", "area": "47.7㎡", "floor": "3階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000105860723/?bc=100496573172", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.054928, "lng": 141.360886, "building": "サンコート南6条壱番館", "title": "サンコート南6条壱番館", "address": "北海道札幌市中央区南6条東2丁目6-1", "ward": "中央区", "rent": 105000, "rent_fmt": "¥105,000", "mgmt_fee": "¥30,000", "deposit": "-", "key_money": "-", "layout": "1LDK", "area": "41.0㎡", "floor": "4階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000097586294/?bc=100493344606", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.058483, "lng": 141.335678, "building": "サンコート大通", "title": "サンコート大通", "address": "北海道札幌市中央区大通西14丁目3-44", "ward": "中央区", "rent": 61000, "rent_fmt": "¥61,000", "mgmt_fee": "¥6,000", "deposit": "-", "key_money": "6.1万円", "layout": "1LDK", "area": "31.3㎡", "floor": "3階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000103549050/?bc=100489235201", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.066612, "lng": 141.325562, "building": "サンコート桑園ガーデンヒルズ", "title": "サンコート桑園ガーデンヒルズ", "address": "北海道札幌市中央区北7条西19丁目38-73", "ward": "中央区", "rent": 78000, "rent_fmt": "¥78,000", "mgmt_fee": "¥6,000", "deposit": "-", "key_money": "7.8万円", "layout": "1LDK", "area": "40.0㎡", "floor": "13階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000104987381/?bc=100490106854", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.056427, "lng": 141.33136, "building": "シェール松岡", "title": "シェール松岡", "address": "北海道札幌市中央区南1条西17丁目1-14", "ward": "中央区", "rent": 32000, "rent_fmt": "¥32,000", "mgmt_fee": "¥3,000", "deposit": "-", "key_money": "-", "layout": "ワンルーム", "area": "21.1㎡", "floor": "4階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000105112112/?bc=100490652463", "category": "1R-1DK", "color": "#3498db"}, {"lat": 43.051342, "lng": 141.334641, "building": "シティハイツ南6条", "title": "シティハイツ南6条", "address": "北海道札幌市中央区南6条西15丁目1-10", "ward": "中央区", "rent": 30000, "rent_fmt": "¥30,000", "mgmt_fee": "¥3,000", "deposit": "-", "key_money": "3万円", "layout": "1DK", "area": "23.4㎡", "floor": "4階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000105129337/?bc=100491657207", "category": "1R-1DK", "color": "#3498db"}, {"lat": 43.051437, "lng": 141.355453, "building": "シティマンション五十嵐", "title": "シティマンション五十嵐", "address": "北海道札幌市中央区南8条西3丁目6-1", "ward": "中央区", "rent": 95000, "rent_fmt": "¥95,000", "mgmt_fee": "¥6,000", "deposit": "9.5万円", "key_money": "-", "layout": "3LDK", "area": "73.6㎡", "floor": "9階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000105941569/?bc=100497471303", "category": "3LDK+", "color": "#e74c3c"}, {"lat": 43.063457, "lng": 141.363724, "building": "ジュネス大通", "title": "ジュネス大通", "address": "北海道札幌市中央区大通東5丁目4-5", "ward": "中央区", "rent": 51000, "rent_fmt": "¥51,000", "mgmt_fee": "¥4,000", "deposit": "-", "key_money": "-", "layout": "1LDK", "area": "36.1㎡", "floor": "3階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000104580474/?bc=100486795233", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.06316, "lng": 141.36702, "building": "ストラダーレ", "title": "ストラダーレ", "address": "北海道札幌市中央区大通東7丁目12-22", "ward": "中央区", "rent": 72000, "rent_fmt": "¥72,000", "mgmt_fee": "¥5,000", "deposit": "7.2万円", "key_money": "-", "layout": "1LDK", "area": "33.3㎡", "floor": "2階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000105231960/?bc=100491786058", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.043377, "lng": 141.347473, "building": "セレナール南13条", "title": "セレナール南13条", "address": "北海道札幌市中央区南13条西8丁目1-35", "ward": "中央区", "rent": 51000, "rent_fmt": "¥51,000", "mgmt_fee": "¥5,000", "deposit": "5.1万円", "key_money": "-", "layout": "1LDK", "area": "36.9㎡", "floor": "7階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000105767459/?bc=100440558612", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.050491, "lng": 141.358505, "building": "ドミローレル第8", "title": "ドミローレル第8", "address": "北海道札幌市中央区南8条西1丁目6-1", "ward": "中央区", "rent": 48000, "rent_fmt": "¥48,000", "mgmt_fee": "¥6,000", "deposit": "4.8万円", "key_money": "-", "layout": "1DK", "area": "36.3㎡", "floor": "11階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000020428649/?bc=100491487070", "category": "1R-1DK", "color": "#3498db"}, {"lat": 43.064404, "lng": 141.335388, "building": "ナムズビル", "title": "ナムズビル", "address": "北海道札幌市中央区北4条西13丁目1-27", "ward": "中央区", "rent": 36000, "rent_fmt": "¥36,000", "mgmt_fee": "¥5,000", "deposit": "-", "key_money": "-", "layout": "1DK", "area": "30.5㎡", "floor": "3階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000012889228/?bc=100497659655", "category": "1R-1DK", "color": "#3498db"}, {"lat": 43.045238, "lng": 141.357559, "building": "パークアベニュー中島", "title": "Ｐａｒｋ　Ａｖｅｎｕｅ　Ｎａｋａｊｉｍａ（パークアベニュー中島）", "address": "北海道札幌市中央区南11条西1丁目2-15", "ward": "中央区", "rent": 40000, "rent_fmt": "¥40,000", "mgmt_fee": "−", "deposit": "-", "key_money": "-", "layout": "1K", "area": "22.0㎡", "floor": "9階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000105702585/?bc=100493878075", "category": "1R-1DK", "color": "#3498db"}, {"lat": 43.056786, "lng": 141.322327, "building": "パークレジデンス", "title": "パークレジデンス鶴", "address": "北海道札幌市中央区大通西23丁目1-22", "ward": "中央区", "rent": 33000, "rent_fmt": "¥33,000", "mgmt_fee": "−", "deposit": "3.3万円", "key_money": "-", "layout": "1DK", "area": "29.2㎡", "floor": "2階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000041935832/?bc=100407384255", "category": "1R-1DK", "color": "#3498db"}, {"lat": 43.0567271, "lng": 141.3223811, "building": "パークレジデンス", "title": "円山パークレジデンス", "address": "北海道札幌市中央区大通西23丁目1-22", "ward": "中央区", "rent": 930000, "rent_fmt": "¥930,000", "mgmt_fee": "¥20,000", "deposit": "93万円", "key_money": "93万円", "layout": "4LDK", "area": "255.5㎡", "floor": "1階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000103229303/?bc=100475993086", "category": "3LDK+", "color": "#e74c3c"}, {"lat": 43.0567957, "lng": 141.3222143, "building": "パークレジデンス", "title": "円山パークレジデンス", "address": "北海道札幌市中央区大通西23丁目1-22", "ward": "中央区", "rent": 700000, "rent_fmt": "¥700,000", "mgmt_fee": "¥20,000", "deposit": "70万円", "key_money": "70万円", "layout": "2LDK", "area": "184.4㎡", "floor": "1階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000103229304/?bc=100475993094", "category": "2K-2LDK", "color": "#e67e22"}, {"lat": 43.0568706, "lng": 141.3224367, "building": "パークレジデンス", "title": "円山パークレジデンス", "address": "北海道札幌市中央区大通西23丁目1-22", "ward": "中央区", "rent": 720000, "rent_fmt": "¥720,000", "mgmt_fee": "¥20,000", "deposit": "72万円", "key_money": "72万円", "layout": "2LDK", "area": "200.8㎡", "floor": "1階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000104135862/?bc=100479867540", "category": "2K-2LDK", "color": "#e67e22"}, {"lat": 43.0566283, "lng": 141.3222997, "building": "パークレジデンス", "title": "パークレジデンス", "address": "北海道札幌市中央区大通西23丁目1-22", "ward": "中央区", "rent": 36000, "rent_fmt": "¥36,000", "mgmt_fee": "¥5,000", "deposit": "-", "key_money": "-", "layout": "ワンルーム", "area": "25.6㎡", "floor": "2階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000105770990/?bc=100482138685", "category": "1R-1DK", "color": "#3498db"}, {"lat": 43.0569365, "lng": 141.3222303, "building": "パークレジデンス", "title": "パークレジデンス", "address": "北海道札幌市中央区大通西23丁目1-22", "ward": "中央区", "rent": 60000, "rent_fmt": "¥60,000", "mgmt_fee": "¥9,490", "deposit": "6万円", "key_money": "-", "layout": "2DK", "area": "56.7㎡", "floor": "5階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000103344778/?bc=100482641336", "category": "2K-2LDK", "color": "#e67e22"}, {"lat": 43.073956, "lng": 141.329086, "building": "メープル桑園駅", "title": "メープル桑園駅", "address": "北海道札幌市中央区北13条西16丁目3-10", "ward": "中央区", "rent": 47000, "rent_fmt": "¥47,000", "mgmt_fee": "¥4,000", "deposit": "-", "key_money": "-", "layout": "1LDK", "area": "31.1㎡", "floor": "4階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000092422710/?bc=100403894172", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.050274, "lng": 141.350769, "building": "ラ クレシュール", "title": "Ｌａ　ＣＬＥＳＳＩＲ（ラ　クレシュール）", "address": "北海道札幌市中央区南8条西6丁目423-78", "ward": "中央区", "rent": 100000, "rent_fmt": "¥100,000", "mgmt_fee": "¥5,000", "deposit": "10万円", "key_money": "-", "layout": "2LDK", "area": "46.2㎡", "floor": "5階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000105457475/?bc=100494269938", "category": "2K-2LDK", "color": "#e67e22"}, {"lat": 43.060818, "lng": 141.344772, "building": "ライオンズシティ大通公園", "title": "ライオンズシティ大通公園", "address": "北海道札幌市中央区北1条西8丁目2-49", "ward": "中央区", "rent": 50000, "rent_fmt": "¥50,000", "mgmt_fee": "¥5,000", "deposit": "5万円", "key_money": "-", "layout": "ワンルーム", "area": "22.7㎡", "floor": "3階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000100845369/?bc=100464756019", "category": "1R-1DK", "color": "#3498db"}, {"lat": 43.032948, "lng": 141.34108, "building": "ラムール山鼻", "title": "ラムール山鼻", "address": "北海道札幌市中央区南20条西13丁目1-3", "ward": "中央区", "rent": 120000, "rent_fmt": "¥120,000", "mgmt_fee": "−", "deposit": "24万円", "key_money": "-", "layout": "4LDK", "area": "126.0㎡", "floor": "3階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000105658128/?bc=100495033276", "category": "3LDK+", "color": "#e74c3c"}, {"lat": 43.051128, "lng": 141.340759, "building": "リバティインハイム", "title": "リバティインハイム", "address": "北海道札幌市中央区南7条西12丁目1-1", "ward": "中央区", "rent": 27000, "rent_fmt": "¥27,000", "mgmt_fee": "¥3,000", "deposit": "-", "key_money": "-", "layout": "1DK", "area": "20.2㎡", "floor": "3階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000105598072/?bc=100494631492", "category": "1R-1DK", "color": "#3498db"}, {"lat": 43.051575, "lng": 141.341553, "building": "ルミエール札幌", "title": "プルミエール札幌", "address": "北海道札幌市中央区南6条西11丁目1284-11", "ward": "中央区", "rent": 56000, "rent_fmt": "¥56,000", "mgmt_fee": "¥5,500", "deposit": "5.6万円", "key_money": "-", "layout": "1LDK", "area": "38.5㎡", "floor": "2階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000105707657/?bc=100495687015", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.052891, "lng": 141.339645, "building": "ル・ソレイユ", "title": "ル・ソレイユ・ドゥ・マルヤマ", "address": "北海道札幌市中央区南5条西12丁目1299-55", "ward": "中央区", "rent": 53000, "rent_fmt": "¥53,000", "mgmt_fee": "¥3,000", "deposit": "-", "key_money": "-", "layout": "1LDK", "area": "39.9㎡", "floor": "1階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000071392338/?bc=100489235975", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.0528321, "lng": 141.3396991, "building": "ル・ソレイユ", "title": "ソレイユ", "address": "北海道札幌市中央区南5条西12丁目1299-55", "ward": "中央区", "rent": 40000, "rent_fmt": "¥40,000", "mgmt_fee": "¥3,000", "deposit": "-", "key_money": "-", "layout": "1LDK", "area": "32.0㎡", "floor": "4階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000044106443/?bc=100429765309", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.026543, "lng": 141.338837, "building": "ロイヤルハイツ", "title": "宮の森ロイヤルハイツ", "address": "北海道札幌市中央区南24条西15丁目1-11", "ward": "中央区", "rent": 70000, "rent_fmt": "¥70,000", "mgmt_fee": "−", "deposit": "7万円", "key_money": "-", "layout": "1LDK", "area": "55.4㎡", "floor": "4階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000058935722/?bc=100490610932", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.0264841, "lng": 141.3388911, "building": "ロイヤルハイツ", "title": "ロイヤルハイツ桑園", "address": "北海道札幌市中央区南24条西15丁目1-11", "ward": "中央区", "rent": 39000, "rent_fmt": "¥39,000", "mgmt_fee": "¥2,000", "deposit": "3.9万円", "key_money": "-", "layout": "1LDK", "area": "37.1㎡", "floor": "3階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000104293143/?bc=100491531966", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.0265527, "lng": 141.3387243, "building": "ロイヤルハイツ", "title": "ロイヤルハイツ南１４条", "address": "北海道札幌市中央区南24条西15丁目1-11", "ward": "中央区", "rent": 45000, "rent_fmt": "¥45,000", "mgmt_fee": "¥2,000", "deposit": "4.5万円", "key_money": "-", "layout": "2DK", "area": "39.0㎡", "floor": "2階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000099697731/?bc=100466096314", "category": "2K-2LDK", "color": "#e67e22"}, {"lat": 43.049366, "lng": 141.343277, "building": "ローズマリー", "title": "ローズマリー", "address": "北海道札幌市中央区南8条西10丁目1278-19", "ward": "中央区", "rent": 38000, "rent_fmt": "¥38,000", "mgmt_fee": "¥5,000", "deposit": "-", "key_money": "-", "layout": "1DK", "area": "29.0㎡", "floor": "4階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000072110782/?bc=100470770188", "category": "1R-1DK", "color": "#3498db"}, {"lat": 43.057751, "lng": 141.358597, "building": "山岸ビル", "title": "山岸ビル", "address": "北海道札幌市中央区南3条東1丁目1-9", "ward": "中央区", "rent": 50000, "rent_fmt": "¥50,000", "mgmt_fee": "¥3,000", "deposit": "-", "key_money": "-", "layout": "ワンルーム", "area": "26.7㎡", "floor": "3階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000098738981/?bc=100487326371", "category": "1R-1DK", "color": "#3498db"}, {"lat": 43.056194, "lng": 141.362167, "building": "札幌ビオス館", "title": "札幌ビオス館", "address": "北海道札幌市中央区南5条東3丁目11-1", "ward": "中央区", "rent": 45000, "rent_fmt": "¥45,000", "mgmt_fee": "¥5,000", "deposit": "4.5万円", "key_money": "-", "layout": "1DK", "area": "25.5㎡", "floor": "4階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000105444913/?bc=100494441033", "category": "1R-1DK", "color": "#3498db"}, {"lat": 43.05909, "lng": 141.319504, "building": "管財ビル", "title": "管財ビル", "address": "北海道札幌市中央区北2条西25丁目1-2", "ward": "中央区", "rent": 44000, "rent_fmt": "¥44,000", "mgmt_fee": "¥2,000", "deposit": "4.4万円", "key_money": "-", "layout": "1LDK", "area": "34.0㎡", "floor": "5階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000101327276/?bc=100457244012", "category": "1LDK", "color": "#2ecc71"}, {"lat": 43.059933, "lng": 141.363678, "building": "阿部亮財団ビル", "title": "阿部亮財団ビル", "address": "北海道札幌市中央区南2条東5丁目1-11", "ward": "中央区", "rent": 63500, "rent_fmt": "¥63,500", "mgmt_fee": "¥6,000", "deposit": "-", "key_money": "-", "layout": "1K", "area": "24.2㎡", "floor": "4階", "age": "", "station": "", "walk_min": "", "site": "suumo", "url": "https://suumo.jp/chintai/jnc_000105634938/?bc=100494815409", "category": "1R-1DK", "color": "#3498db"}];
+  const unmapped = [];
+  const categoryColors = {"1R-1DK": "#3498db", "1LDK": "#2ecc71", "2K-2LDK": "#e67e22", "3LDK+": "#e74c3c", "other": "#95a5a6"};
+  const categoryLabels = {"1R-1DK": "ワンルーム/1K/1DK", "1LDK": "1LDK", "2K-2LDK": "2K/2DK/2LDK", "3LDK+": "3LDK以上", "other": "その他"};
+
+  // マップ初期化
+  const map = L.map('map').setView([43.055, 141.345], 13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(map);
+
+  // マーカークラスター
+  const clusterGroup = L.markerClusterGroup({
+    maxClusterRadius: 40,
+    spiderfyOnMaxZoom: true,
+    showCoverageOnHover: false,
+    iconCreateFunction: function(cluster) {
+      const count = cluster.getChildCount();
+      let size = count < 5 ? 'small' : count < 15 ? 'medium' : 'large';
+      return L.divIcon({
+        html: '<div><span>' + count + '</span></div>',
+        className: 'marker-cluster marker-cluster-' + size,
+        iconSize: L.point(40, 40)
+      });
+    }
+  });
+
+  // カスタムマーカーアイコン生成
+  function createIcon(color) {
+    return L.divIcon({
+      className: 'custom-marker',
+      html: `<div style="
+        width:14px;height:14px;border-radius:50%;
+        background:${color};
+        border:2.5px solid #fff;
+        box-shadow:0 1px 4px rgba(0,0,0,0.4);
+      "></div>`,
+      iconSize: [14, 14],
+      iconAnchor: [7, 7],
+      popupAnchor: [0, -10]
+    });
+  }
+
+  // ポップアップHTML生成
+  function popupHtml(p) {
+    let rows = '';
+    if (p.layout) rows += `<div class="popup-row"><span class="label">間取り</span><span class="value">${p.layout}${p.area ? ' / ' + p.area : ''}</span></div>`;
+    if (p.floor) rows += `<div class="popup-row"><span class="label">階数</span><span class="value">${p.floor}</span></div>`;
+    if (p.age) rows += `<div class="popup-row"><span class="label">築年数</span><span class="value">${p.age}</span></div>`;
+    rows += `<div class="popup-row"><span class="label">敷/礼</span><span class="value">${p.deposit} / ${p.key_money}</span></div>`;
+    if (p.station) rows += `<div class="popup-row"><span class="label">最寄駅</span><span class="value">${p.station}${p.walk_min ? '（徒歩' + p.walk_min + '分）' : ''}</span></div>`;
+    rows += `<div class="popup-row"><span class="label">住所</span><span class="value">${p.address}</span></div>`;
+    if (p.site) rows += `<div class="popup-row"><span class="label">サイト</span><span class="value">${p.site}</span></div>`;
+
+    return `
+      <div class="popup-title">${p.building}</div>
+      <div class="popup-rent">${p.rent_fmt} <span class="mgmt">+ 管理費 ${p.mgmt_fee}</span></div>
+      ${rows}
+      ${p.url ? `<a class="popup-link" href="${p.url}" target="_blank" rel="noopener">詳細を見る →</a>` : ''}
+    `;
+  }
+
+  // マーカー作成
+  const markers = [];
+  const activeCategories = new Set(Object.keys(categoryColors));
+
+  properties.forEach((p, i) => {
+    const marker = L.marker([p.lat, p.lng], {
+      icon: createIcon(p.color)
+    });
+    marker.bindPopup(popupHtml(p), { maxWidth: 300, closeButton: true });
+    marker.bindTooltip(`${p.building} - ${p.rent_fmt} - ${p.layout}`, {
+      direction: 'top', offset: [0, -8], opacity: 0.92
+    });
+    marker._propData = p;
+    marker._propIndex = i;
+    markers.push(marker);
+    clusterGroup.addLayer(marker);
+  });
+
+  map.addLayer(clusterGroup);
+
+  // 全マーカーが収まるようにズーム
+  if (markers.length > 0) {
+    const group = L.featureGroup(markers);
+    map.fitBounds(group.getBounds().pad(0.1));
+  }
+
+  // --- サイドバー ---
+  const listEl = document.getElementById('property-list');
+  const totalCountEl = document.getElementById('total-count');
+  const visibleCountEl = document.getElementById('visible-count');
+  totalCountEl.textContent = properties.length;
+
+  function renderList(filtered) {
+    listEl.innerHTML = '';
+    filtered.forEach((p, idx) => {
+      const item = document.createElement('div');
+      item.className = 'property-item';
+      item.innerHTML = `
+        <div class="prop-name"><span class="dot" style="background:${p.color}"></span>${p.building}</div>
+        <div class="prop-meta">
+          <span>${p.rent_fmt}</span>
+          <span>${p.layout}</span>
+          ${p.area ? '<span>' + p.area + '</span>' : ''}
+          ${p.ward ? '<span>' + p.ward + '</span>' : ''}
+        </div>
+      `;
+      item.addEventListener('click', () => {
+        const m = markers[p._origIndex];
+        if (m) {
+          map.setView([p.lat, p.lng], 17);
+          clusterGroup.zoomToShowLayer(m, () => { m.openPopup(); });
+          document.querySelectorAll('.property-item.active').forEach(el => el.classList.remove('active'));
+          item.classList.add('active');
+        }
+      });
+      listEl.appendChild(item);
+    });
+    visibleCountEl.textContent = filtered.length;
+  }
+
+  // --- フィルタ ---
+  const layoutFiltersEl = document.getElementById('layout-filters');
+  Object.keys(categoryLabels).forEach(cat => {
+    const label = document.createElement('label');
+    label.innerHTML = `<input type="checkbox" data-cat="${cat}" checked>
+      <span class="dot" style="background:${categoryColors[cat]};width:10px;height:10px;border-radius:50%;display:inline-block"></span>
+      ${categoryLabels[cat]}`;
+    layoutFiltersEl.appendChild(label);
+  });
+
+  const rentMinSlider = document.getElementById('rent-min');
+  const rentMaxSlider = document.getElementById('rent-max');
+  const rentMinLabel = document.getElementById('rent-min-label');
+  const rentMaxLabel = document.getElementById('rent-max-label');
+
+  function formatYen(v) { return '¥' + Number(v).toLocaleString(); }
+
+  function applyFilters() {
+    const checkedCats = new Set();
+    document.querySelectorAll('#layout-filters input[type=checkbox]:checked').forEach(cb => {
+      checkedCats.add(cb.dataset.cat);
+    });
+
+    let rMin = parseInt(rentMinSlider.value);
+    let rMax = parseInt(rentMaxSlider.value);
+    if (rMin > rMax) { [rMin, rMax] = [rMax, rMin]; }
+    rentMinLabel.textContent = formatYen(rMin);
+    rentMaxLabel.textContent = formatYen(rMax);
+
+    clusterGroup.clearLayers();
+    const filtered = [];
+
+    properties.forEach((p, i) => {
+      const catMatch = checkedCats.has(p.category);
+      const rentMatch = (p.rent === 0) || (p.rent >= rMin && p.rent <= rMax);
+      if (catMatch && rentMatch) {
+        clusterGroup.addLayer(markers[i]);
+        filtered.push({ ...p, _origIndex: i });
+      }
+    });
+
+    renderList(filtered);
+  }
+
+  document.querySelectorAll('#layout-filters input').forEach(cb => {
+    cb.addEventListener('change', applyFilters);
+  });
+  rentMinSlider.addEventListener('input', applyFilters);
+  rentMaxSlider.addEventListener('input', applyFilters);
+
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    document.querySelectorAll('#layout-filters input').forEach(cb => { cb.checked = true; });
+    rentMinSlider.value = rentMinSlider.min;
+    rentMaxSlider.value = rentMaxSlider.max;
+    applyFilters();
+  });
+
+  // 初期表示
+  applyFilters();
+
+  // --- サイドバートグル ---
+  const sidebar = document.getElementById('sidebar');
+  document.getElementById('sidebar-toggle').addEventListener('click', () => {
+    sidebar.classList.toggle('collapsed');
+    setTimeout(() => map.invalidateSize(), 350);
+  });
+
+  // --- フィルタ折りたたみ ---
+  const filterBody = document.getElementById('filter-body');
+  const filterToggle = document.getElementById('filter-toggle');
+  filterToggle.addEventListener('click', () => {
+    filterBody.classList.toggle('collapsed');
+    filterToggle.textContent = filterBody.classList.contains('collapsed') ? '▶' : '▼';
+  });
+
+  // --- 凡例 ---
+  const legendItems = document.getElementById('legend-items');
+  Object.keys(categoryLabels).forEach(cat => {
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = `<span class="legend-dot" style="background:${categoryColors[cat]}"></span>${categoryLabels[cat]}`;
+    legendItems.appendChild(item);
+  });
+
+  // --- 未マッピング物件 ---
+  if (unmapped.length > 0) {
+    const panel = document.getElementById('unmapped-panel');
+    panel.style.display = 'block';
+    const tbody = panel.querySelector('tbody');
+    unmapped.forEach(u => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${u.building}</td><td>${u.address}</td><td>${u.rent}</td><td>${u.layout}</td>
+        <td>${u.url ? '<a href="' + u.url + '" target="_blank">リンク</a>' : '−'}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // モバイル: 初期状態でサイドバー閉じる
+  if (window.innerWidth <= 768) {
+    sidebar.classList.add('collapsed');
+  }
+})();
+</script>
+</body>
+</html>

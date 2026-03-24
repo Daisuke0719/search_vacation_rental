@@ -1,0 +1,13 @@
+2026-03-24 02:39:28,522 [INFO] __main__: === 賃貸掲載リサーチ開始 ===
+2026-03-24 02:39:28,559 [INFO] __main__: Loaded 616 buildings from C:\Users\daisu\Documents\民泊\01_sapporo\05_rental_search\output\buildings.csv
+2026-03-24 02:39:28,559 [INFO] __main__: Limited to 3 buildings
+2026-03-24 02:39:28,569 [INFO] __main__: Registered 3 buildings in DB
+2026-03-24 02:39:28,574 [INFO] __main__: Starting run 5
+2026-03-24 02:39:28,580 [INFO] __main__: === Searching suumo (3 buildings) ===
+2026-03-24 02:39:28,580 [INFO] __main__: [suumo] Using direct scraping
+2026-03-24 02:39:29,377 [INFO] scrapers.base: [suumo] Browser started
+2026-03-24 02:39:42,213 [INFO] scrapers.suumo: [suumo] ONE'S RESIDENCE (中央区): 0 listings found
+2026-03-24 02:39:42,333 [INFO] scrapers.base: [suumo] Browser stopped
+2026-03-24 02:39:42,333 [INFO] __main__: [suumo] Done: 3 searched, 0 found, 0 new, 0 errors
+2026-03-24 02:39:42,340 [INFO] __main__: === Run complete: 3 searched, 0 found, 0 new, 0 errors ===
+2026-03-24 02:39:42,341 [INFO] __main__: === 完了 ===
