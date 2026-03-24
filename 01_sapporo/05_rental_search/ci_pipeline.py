@@ -8,6 +8,7 @@ GitHub Actions から呼び出され、以下を順次実行する:
 5. マップHTML生成
 """
 
+import argparse
 import asyncio
 import logging
 import sys
@@ -56,6 +57,12 @@ def generate_map():
 
 
 def main():
+    parser = argparse.ArgumentParser(description="CI/CD パイプライン")
+    parser.add_argument("--sites", nargs="+", default=None, help="検索対象サイト (例: suumo homes)")
+    parser.add_argument("--ward", type=str, default=None, help="区名で絞り込み (例: 中央区)")
+    parser.add_argument("--limit", type=int, default=None, help="検索建物数の上限（テスト用）")
+    args = parser.parse_args()
+
     setup_logging()
     logger.info("=== CI/CD パイプライン開始 ===")
 
@@ -74,17 +81,27 @@ def main():
         groups = load_buildings_csv(csv_path)
         logger.info(f"Loaded {len(groups)} buildings from {csv_path}")
 
+    # フィルタ
+    if args.ward:
+        groups = [g for g in groups if g.ward == args.ward]
+        logger.info(f"Filtered to {len(groups)} buildings in {args.ward}")
+
     # ユニット数の多い建物を優先
     groups.sort(key=lambda g: -g.unit_count)
+
+    if args.limit:
+        groups = groups[:args.limit]
+        logger.info(f"Limited to {len(groups)} buildings")
 
     # 3. 建物情報をDBに登録
     building_ids = load_buildings_to_db(groups)
     logger.info(f"Registered {len(building_ids)} buildings in DB")
 
     # 4. スクレイピング実行
+    sites = args.sites or ENABLED_SITES
     try:
         total_stats = asyncio.run(
-            run_search(ENABLED_SITES, groups, building_ids)
+            run_search(sites, groups, building_ids)
         )
         logger.info(
             f"検索完了: {total_stats['searched']} searched, "

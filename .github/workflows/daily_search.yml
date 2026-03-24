@@ -5,6 +5,22 @@ on:
     # 月・水・金 02:00 JST = 日・火・木 17:00 UTC
     - cron: '0 17 * * 0,2,4'
   workflow_dispatch:
+    inputs:
+      sites:
+        description: '検索サイト (例: suumo, homes)'
+        required: false
+        default: ''
+        type: string
+      ward:
+        description: '区名で絞り込み (例: 中央区)'
+        required: false
+        default: ''
+        type: string
+      limit:
+        description: '検索建物数の上限（テスト用）'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: write
@@ -61,7 +77,12 @@ jobs:
       # ---- Run Pipeline ----
       - name: Run scraping pipeline
         working-directory: ${{ env.WORK_DIR }}
-        run: python ci_pipeline.py
+        run: |
+          ARGS=""
+          if [ -n "${{ inputs.sites }}" ]; then ARGS="$ARGS --sites ${{ inputs.sites }}"; fi
+          if [ -n "${{ inputs.ward }}" ]; then ARGS="$ARGS --ward ${{ inputs.ward }}"; fi
+          if [ -n "${{ inputs.limit }}" ]; then ARGS="$ARGS --limit ${{ inputs.limit }}"; fi
+          python ci_pipeline.py $ARGS
 
       # ---- Artifacts ----
       - name: Upload Excel results
