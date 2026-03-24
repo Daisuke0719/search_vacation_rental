@@ -3,9 +3,10 @@
 GitHub Actions から呼び出され、以下を順次実行する:
 1. 建物リスト読み込み・DB登録
 2. 賃貸サイトスクレイピング
-3. Excel出力
-4. LINE通知（新着時）
-5. マップHTML生成
+3. SUUMO掲載の検証（建物名・住所の一致確認）
+4. Excel出力
+5. LINE通知（新着時）
+6. マップHTML生成
 """
 
 import argparse
@@ -21,10 +22,14 @@ from config import ENABLED_SITES, BUILDINGS_CSV, LOG_DIR
 from extractors.building_name import (
     load_and_extract, load_buildings_csv, export_buildings_csv,
 )
-from models.database import init_db, get_db, get_new_listings_today
+from models.database import (
+    init_db, get_db, get_new_listings_today,
+    get_unverified_suumo_listings, upsert_verification,
+)
 from main import load_buildings_to_db, run_search, setup_logging
 from exporters.excel_export import export_results
 from notifications.line_notify import send_new_listing_notification
+from verify_listings import VerificationScraper, verify_all, print_summary
 from generate_map import (
     load_listings, geocode_all, build_map_data, render_html,
     find_latest_excel, MAP_OUTPUT_PATH,
@@ -112,14 +117,44 @@ def main():
         logger.error(f"スクレイピング中にエラー: {e}")
         total_stats = {"searched": 0, "found": 0, "new": 0, "errors": 1}
 
-    # 5. Excel出力
+    # 5. SUUMO掲載の検証（未検証分のみ）
+    try:
+        with get_db() as conn:
+            unverified = get_unverified_suumo_listings(conn, ward=args.ward)
+        if unverified:
+            logger.info(f"=== SUUMO掲載検証開始: {len(unverified)}件 ===")
+
+            async def run_verify():
+                scraper = VerificationScraper()
+                async with scraper:
+                    return await verify_all(unverified, scraper)
+
+            verify_results = asyncio.run(run_verify())
+
+            # 検証結果をDBに保存
+            with get_db() as conn:
+                for r in verify_results:
+                    upsert_verification(
+                        conn, r.listing_id,
+                        r.actual_name, r.actual_address,
+                        r.name_score, r.address_match,
+                        r.status, r.reason,
+                    )
+            print_summary(verify_results)
+            logger.info("検証結果をDBに保存しました")
+        else:
+            logger.info("未検証のSUUMO掲載はありません")
+    except Exception as e:
+        logger.error(f"SUUMO検証エラー: {e}")
+
+    # 6. Excel出力
     try:
         output_path = export_results()
         logger.info(f"Excel exported to {output_path}")
     except Exception as e:
         logger.error(f"Excel出力エラー: {e}")
 
-    # 6. LINE通知
+    # 7. LINE通知
     if total_stats.get("new", 0) > 0:
         try:
             with get_db() as conn:
@@ -130,7 +165,7 @@ def main():
         except Exception as e:
             logger.error(f"LINE通知エラー: {e}")
 
-    # 7. マップHTML生成
+    # 8. マップHTML生成
     try:
         generate_map()
     except Exception as e:
