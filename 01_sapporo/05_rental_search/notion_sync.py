@@ -63,7 +63,7 @@ def query_all_pages(client: httpx.Client) -> dict[str, dict]:
         for page in data.get("results", []):
             props = page["properties"]
             # URL プロパティから listing_url を取得
-            url_prop = props.get("URL", {})
+            url_prop = props.get("userDefined:URL", {})
             listing_url = url_prop.get("url", "")
             if listing_url:
                 # 家賃を取得（変更検知用）
@@ -121,10 +121,10 @@ def _build_properties(row) -> dict:
         props["徒歩（分）"] = {"number": row["walk_minutes"]}
 
     if row["listing_url"]:
-        props["URL"] = {"url": row["listing_url"]}
+        props["userDefined:URL"] = {"url": row["listing_url"]}
 
     if row["listing_title"]:
-        props["物件タイトル"] = {"rich_text": [{"text": {"content": row["listing_title"]}}]}
+        props["物件タイトル"] = {"rich_text": [{"text": {"content": str(row["listing_title"])[:2000]}}]}
 
     if row["deposit"]:
         props["敷金"] = {"rich_text": [{"text": {"content": str(row["deposit"])}}]}
@@ -156,7 +156,9 @@ def create_page(client: httpx.Client, row) -> str:
 
     _rate_limit()
     resp = client.post(f"{NOTION_API_URL}/pages", json=payload)
-    resp.raise_for_status()
+    if resp.status_code != 200:
+        logger.error(f"Notion create_page failed: {resp.status_code} {resp.text[:300]}")
+        resp.raise_for_status()
     return resp.json()["id"]
 
 
@@ -166,7 +168,9 @@ def update_page(client: httpx.Client, page_id: str, row) -> None:
 
     _rate_limit()
     resp = client.patch(f"{NOTION_API_URL}/pages/{page_id}", json=payload)
-    resp.raise_for_status()
+    if resp.status_code != 200:
+        logger.error(f"Notion update_page failed: {resp.status_code} {resp.text[:300]}")
+        resp.raise_for_status()
 
 
 def mark_inactive(client: httpx.Client, page_id: str) -> None:
@@ -208,36 +212,45 @@ def sync():
         created = 0
         updated = 0
 
+        errors = 0
         for row in active_listings:
             url = row["listing_url"]
             active_urls.add(url)
 
-            if url in existing_pages:
-                page_info = existing_pages[url]
-                # ステータスが Inactive だった場合、または家賃が変わった場合に更新
-                needs_update = (
-                    page_info["status"] != "Active"
-                    or page_info["rent"] != row["rent_price"]
-                )
-                if needs_update:
-                    update_page(client, page_info["page_id"], row)
-                    updated += 1
-                    logger.debug(f"更新: {row['building_name']} ({url})")
-            else:
-                page_id = create_page(client, row)
-                created += 1
-                logger.debug(f"作成: {row['building_name']} ({url})")
+            try:
+                if url in existing_pages:
+                    page_info = existing_pages[url]
+                    # ステータスが Inactive だった場合、または家賃が変わった場合に更新
+                    needs_update = (
+                        page_info["status"] != "Active"
+                        or page_info["rent"] != row["rent_price"]
+                    )
+                    if needs_update:
+                        update_page(client, page_info["page_id"], row)
+                        updated += 1
+                        logger.debug(f"更新: {row['building_name']} ({url})")
+                else:
+                    create_page(client, row)
+                    created += 1
+                    logger.debug(f"作成: {row['building_name']} ({url})")
+            except Exception as e:
+                errors += 1
+                logger.warning(f"スキップ: {row['building_name']} - {e}")
 
         # 掲載が消えたページを Inactive に
         deactivated = 0
         for url, page_info in existing_pages.items():
             if url not in active_urls and page_info["status"] == "Active":
-                mark_inactive(client, page_info["page_id"])
-                deactivated += 1
+                try:
+                    mark_inactive(client, page_info["page_id"])
+                    deactivated += 1
+                except Exception as e:
+                    errors += 1
+                    logger.warning(f"非アクティブ化失敗: {url} - {e}")
 
         logger.info(
             f"=== Notion同期完了: 作成={created}, 更新={updated}, "
-            f"非アクティブ化={deactivated} ==="
+            f"非アクティブ化={deactivated}, エラー={errors} ==="
         )
     finally:
         client.close()
