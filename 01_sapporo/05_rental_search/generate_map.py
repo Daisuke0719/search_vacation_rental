@@ -638,6 +638,8 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sa
   const unmapped = {unmapped_json};
   const categoryColors = {category_colors_json};
   const categoryLabels = {category_labels_json};
+  const hasScores = {str(has_scores).lower()};
+  const scoreRanges = {score_ranges_json};
 
   // マップ初期化
   const map = L.map('map').setView([43.055, 141.345], 13);
@@ -955,8 +957,6 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sa
 
   // --- 凡例 ---
   const legendItems = document.getElementById('legend-items');
-  const hasScores = {str(has_scores).lower()};
-  const scoreRanges = {score_ranges_json};
   if (hasScores) {{
     scoreRanges.forEach(sr => {{
       const item = document.createElement('div');
