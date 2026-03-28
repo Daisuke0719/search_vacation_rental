@@ -169,10 +169,17 @@ def normalize_name(name: str) -> str:
     """建物名を正規化（比較用）"""
     if not name:
         return ""
-    # NFKC正規化
+    # NFKC正規化（全角→半角英数字など）
     name = unicodedata.normalize("NFKC", name)
+    # SUUMO特有の末尾パターンを除去
+    #   「の賃貸住宅情報」「の賃貸マンション情報」等
+    name = re.sub(r"の賃貸.+$", "", name)
+    # 部屋スペック情報を除去（間取り・階数・面積）
+    name = re.sub(r"\d+[LDKSR]+", "", name, flags=re.IGNORECASE)
+    name = re.sub(r"\d+階", "", name)
+    name = re.sub(r"\d+\.?\d*m[²2]?", "", name)
     # 空白・記号を除去
-    name = re.sub(r"[\s　・\-\(\)（）]", "", name)
+    name = re.sub(r"[\s　・\-\(\)（）/／]", "", name)
     return name.lower()
 
 
@@ -188,9 +195,13 @@ def compare_names(expected: str, actual: str) -> float:
     if ne == na:
         return 1.0
 
-    # 包含チェック（短い方が4文字以上かつ長い方の60%以上）
+    # 先頭一致チェック（長さ比率に関係なく高スコア）
     shorter = min(len(ne), len(na))
     longer = max(len(ne), len(na))
+    if shorter >= 4 and (na.startswith(ne) or ne.startswith(na)):
+        return 0.95
+
+    # 包含チェック（短い方が4文字以上かつ長い方の60%以上）
     if shorter >= 4 and shorter / longer >= 0.6 and (ne in na or na in ne):
         return 0.95
 
@@ -342,17 +353,49 @@ class VerificationScraper(BaseScraper):
                     actual_name = re.sub(r"\s*[-|｜].*(SUUMO|suumo).*$", "", title).strip()
 
             # --- 住所の取得 ---
-            # パターン1: テーブルの「所在地」行
-            th_elements = await page.query_selector_all("th")
-            for th in th_elements:
-                th_text = (await th.inner_text()).strip()
-                if "所在地" in th_text:
-                    td = await th.evaluate_handle(
-                        "el => el.closest('tr')?.querySelector('td') || el.nextElementSibling"
+            # パターン1: 物件情報セクション内の「所在地」行を優先
+            #   SUUMOのページには物件の所在地と取扱店舗の所在地がある。
+            #   物件情報セクション（.property_view_detail, .secbox 等）に限定して
+            #   店舗住所の誤取得を防ぐ。
+            property_sections = [
+                ".property_view_detail",
+                ".secbox",
+                "#bkdt",              # 物件詳細テーブル
+                ".data_table",        # 汎用物件テーブル
+                "table",              # 最終フォールバック
+            ]
+            for section_sel in property_sections:
+                sections = await page.query_selector_all(section_sel)
+                for section in sections:
+                    # このセクションが店舗情報セクション内かどうかチェック
+                    is_shop = await section.evaluate(
+                        """el => {
+                            const container = el.closest('.cassette_shop, .shopArea, '
+                                + '.property_view_sub, .contentsbox-shop, '
+                                + '[id*="shop"], [class*="shop"]');
+                            return !!container;
+                        }"""
                     )
-                    if td:
-                        actual_address = (await td.inner_text()).strip()
+                    if is_shop:
+                        continue
+
+                    ths = await section.query_selector_all("th")
+                    for th in ths:
+                        th_text = (await th.inner_text()).strip()
+                        if "所在地" in th_text:
+                            td = await th.evaluate_handle(
+                                "el => el.closest('tr')?.querySelector('td') || el.nextElementSibling"
+                            )
+                            if td:
+                                addr = (await td.inner_text()).strip()
+                                # 札幌市の住所パターンに一致するか検証
+                                if re.search(r"札幌市.+区", addr):
+                                    actual_address = addr
+                                    break
+                    if actual_address:
                         break
+                if actual_address:
+                    break
 
             # パターン2: detailbox内のテキスト
             if not actual_address:
@@ -369,11 +412,14 @@ class VerificationScraper(BaseScraper):
                     if actual_address:
                         break
 
-            # パターン3: ページ全体から住所パターンを探す
+            # パターン3: ページ全体から住所パターンを探す（店舗情報を除外）
             if not actual_address:
-                m = re.search(r"北海道札幌市[\u4e00-\u9fff]+区[^\n\r<]{3,50}", body_text)
-                if m:
-                    actual_address = m.group(0).strip()
+                # 店舗セクション外のテキストから住所を抽出
+                candidates = re.findall(
+                    r"北海道札幌市[\u4e00-\u9fff]+区[^\n\r<]{3,50}", body_text
+                )
+                if candidates:
+                    actual_address = candidates[0].strip()
 
             # 改行やタブを除去
             actual_name = re.sub(r"[\n\r\t]+", " ", actual_name).strip()
