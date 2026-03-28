@@ -3,16 +3,19 @@
 札幌市の民泊事業向け物件評価に使用する定数を一元管理する。
 """
 
+import sys
 from pathlib import Path
+
+# 共通パス定義を使用
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from shared.paths import (
+    RENTAL_DB_PATH,
+    AIRBNB_DB_PATH,
+    BOOKING_DB_PATH,
+)
 
 # ── パス設定 ──
 BASE_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = BASE_DIR.parent.parent
-SAPPORO_DIR = BASE_DIR.parent
-
-RENTAL_DB_PATH = SAPPORO_DIR / "05_rental_search" / "db" / "rental_search.db"
-AIRBNB_DB_PATH = SAPPORO_DIR / "06_area_analysis" / "external_data" / "airbnb_listings.db"
-BOOKING_DB_PATH = BASE_DIR / "external_data" / "booking_listings.db"
 OUTPUT_DIR = BASE_DIR / "output"
 
 # ── 札幌市 区の隣接マッピング ──

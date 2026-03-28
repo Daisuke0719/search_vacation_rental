@@ -21,7 +21,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from config import NOTION_API_KEY, NOTION_DATABASE_ID
-from models.database import get_db, get_all_active_listings
+from models.database import get_db, get_all_active_listings, get_evaluation_scores_dict
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +34,23 @@ RATE_LIMIT_DELAY = 0.35  # Notion API: 3 requests/second
 
 
 def load_evaluation_scores() -> dict[str, dict]:
-    """評価エンジンの結果をExcelから読み込み、{listing_url: score_data} を返す。
+    """評価スコアを読み込み、{listing_url: score_data} を返す。
 
-    07_property_evaluation/output/ の最新evaluation_*.xlsxを読む。
-    Excel列名とコード内の変数名のマッピングを行う。
+    優先順位:
+    1. rental_search.db の evaluation_scores テーブル（高速・最新）
+    2. Excel フォールバック（DBにデータが無い場合）
     """
+    # ── 1. DBから読み込み（優先） ──
+    try:
+        with get_db() as conn:
+            scores = get_evaluation_scores_dict(conn)
+        if scores:
+            logger.info(f"評価スコアをDBから {len(scores)} 件読み込みました。")
+            return scores
+    except Exception as e:
+        logger.debug(f"DB読み込みスキップ: {e}")
+
+    # ── 2. Excelフォールバック ──
     scores: dict[str, dict] = {}
     try:
         eval_output = EVAL_MODULE_DIR / "output"
@@ -48,7 +60,6 @@ def load_evaluation_scores() -> dict[str, dict]:
 
         eval_excels = sorted(eval_output.glob("evaluation_*.xlsx"))
         if not eval_excels:
-            # まだ評価が実行されていない → evaluate.pyをサブプロセスで実行
             import subprocess
             eval_script = str(EVAL_MODULE_DIR / "evaluate.py")
             if Path(eval_script).exists():
@@ -66,7 +77,6 @@ def load_evaluation_scores() -> dict[str, dict]:
 
         df = pd.read_excel(eval_excels[-1], sheet_name="総合ランキング")
 
-        # Excel列名→コード変数名のマッピング
         col_map = {
             "総合スコア": "total_score",
             "収益性": "score_profitability",
@@ -90,7 +100,7 @@ def load_evaluation_scores() -> dict[str, dict]:
                     score_data[code_key] = float(val)
             scores[str(url)] = score_data
 
-        logger.info(f"評価スコアを {len(scores)} 件読み込みました。")
+        logger.info(f"評価スコアをExcelから {len(scores)} 件読み込みました（フォールバック）。")
     except Exception as e:
         logger.warning(f"評価スコアの読み込みに失敗しました: {e}")
     return scores

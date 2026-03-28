@@ -1,19 +1,23 @@
 """賃貸掲載リサーチアプリケーション - 設定"""
 
 import os
+import sys
 from pathlib import Path
 from dotenv import load_dotenv
 
-# プロジェクトルート
+# 共通パス定義を使用
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from shared.paths import RENTAL_DB_PATH as _SHARED_DB_PATH, EXCEL_PATH as _SHARED_EXCEL_PATH
+
+# モジュールルート
 BASE_DIR = Path(__file__).resolve().parent
-PROJECT_ROOT = BASE_DIR.parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-# データベース
-DB_PATH = BASE_DIR / "db" / "rental_search.db"
+# データベース（共通パス定義から）
+DB_PATH = _SHARED_DB_PATH
 
-# 元データ
-EXCEL_PATH = PROJECT_ROOT / "01_sapporo" / "00_ref" / "札幌市内の民泊施設一覧.xlsx"
+# 元データ（共通パス定義から）
+EXCEL_PATH = _SHARED_EXCEL_PATH
 
 # 出力先
 OUTPUT_DIR = BASE_DIR / "output"

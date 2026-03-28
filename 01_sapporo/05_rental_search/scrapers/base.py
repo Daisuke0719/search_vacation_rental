@@ -3,12 +3,18 @@
 import asyncio
 import logging
 import random
+import re
+import sys
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional
 
 from playwright.async_api import async_playwright, Browser, Page, BrowserContext
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+from shared.browser import get_user_agent, DEFAULT_VIEWPORT, DEFAULT_LOCALE, DEFAULT_TIMEZONE, _load_stealth
 
 from config import RATE_LIMITS, PLAYWRIGHT_HEADLESS, PLAYWRIGHT_TIMEOUT
 
@@ -55,18 +61,12 @@ class BaseScraper(ABC):
             headless=PLAYWRIGHT_HEADLESS,
         )
         self._context = await self._browser.new_context(
-            viewport={"width": 1280, "height": 800},
-            locale="ja-JP",
-            timezone_id="Asia/Tokyo",
+            viewport=DEFAULT_VIEWPORT,
+            locale=DEFAULT_LOCALE,
+            timezone_id=DEFAULT_TIMEZONE,
             user_agent=self._get_user_agent(),
         )
-        # stealth対策を適用（bot検出回避）
-        try:
-            from playwright_stealth import Stealth
-            self._stealth = Stealth()
-        except ImportError:
-            self._stealth = None
-            logger.debug("playwright-stealth not installed, skipping stealth")
+        self._stealth = _load_stealth()
         self._context.set_default_timeout(PLAYWRIGHT_TIMEOUT)
         logger.info(f"[{self.site_name}] Browser started")
 
@@ -89,17 +89,7 @@ class BaseScraper(ABC):
 
     def _get_user_agent(self) -> str:
         """ランダムなUser-Agentを返す"""
-        try:
-            from fake_useragent import UserAgent
-            ua = UserAgent()
-            return ua.chrome
-        except Exception:
-            agents = [
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-            ]
-            return random.choice(agents)
+        return get_user_agent()
 
     async def _rate_limit(self):
         """レート制限を適用"""
@@ -136,10 +126,20 @@ class BaseScraper(ABC):
                     f"[{self.site_name}] HTTP {response.status if response else 'None'} "
                     f"for {url} (attempt {attempt + 1})"
                 )
+            except TimeoutError:
+                logger.warning(
+                    f"[{self.site_name}] Timeout navigating to {url} "
+                    f"(attempt {attempt + 1}/{retries})"
+                )
+            except ConnectionError as e:
+                logger.warning(
+                    f"[{self.site_name}] Connection error for {url} "
+                    f"(attempt {attempt + 1}/{retries}): {e}"
+                )
             except Exception as e:
                 logger.warning(
-                    f"[{self.site_name}] Error navigating to {url} "
-                    f"(attempt {attempt + 1}): {e}"
+                    f"[{self.site_name}] Unexpected error navigating to {url} "
+                    f"(attempt {attempt + 1}/{retries}): {type(e).__name__}: {e}"
                 )
             if attempt < retries - 1:
                 wait = (2 ** attempt) * random.uniform(1, 2)
@@ -192,6 +192,3 @@ class BaseScraper(ABC):
         if m:
             return int(m.group(1))
         return None
-
-
-import re  # noqa: E402 - used in _parse methods

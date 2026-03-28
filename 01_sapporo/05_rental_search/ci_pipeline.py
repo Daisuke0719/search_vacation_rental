@@ -8,19 +8,22 @@ GitHub Actions から呼び出され、以下を順次実行する:
 5. 物件評価（収益シミュレーション・スコアリング）
 6. LINE通知（新着時）
 7. マップHTML生成
+
+各ステージは独立した関数に分離され、統一的なエラーハンドリングと
+結果追跡（成功/失敗・所要時間）を行う。
 """
 
 import argparse
 import asyncio
 import logging
+import subprocess
 import sys
-from datetime import datetime
+import time
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-# 物件評価モジュールのディレクトリ
-_EVAL_DIR = Path(__file__).resolve().parent.parent / "07_property_evaluation"
 
 from config import ENABLED_SITES, BUILDINGS_CSV, LOG_DIR
 from extractors.building_name import (
@@ -33,7 +36,7 @@ from models.database import (
 from main import load_buildings_to_db, run_search, setup_logging
 from exporters.excel_export import export_results
 from notifications.line_notify import send_new_listing_notification
-from verify_listings import VerificationScraper, verify_all, print_summary
+from verify_listings import VerificationScraper, verify_all, print_summary as print_verify_summary
 from generate_map import (
     load_listings, geocode_all, build_map_data, render_html,
     find_latest_excel, load_evaluation_scores, MAP_OUTPUT_PATH,
@@ -41,48 +44,51 @@ from generate_map import (
 
 logger = logging.getLogger(__name__)
 
-
-def generate_map():
-    """Excel出力からマップHTMLを生成（webbrowser.open なし）"""
-    excel_path = find_latest_excel()
-    if not excel_path or not excel_path.exists():
-        logger.warning("Excelファイルが見つかりません。マップ生成をスキップします")
-        return False
-
-    logger.info(f"[MAP] Excelデータ読み込み: {excel_path.name}")
-    df = load_listings(excel_path)
-
-    logger.info("[MAP] ジオコーディング（国土地理院API）")
-    coords = geocode_all(df)
-
-    logger.info("[MAP] 評価スコア読み込み")
-    scores = load_evaluation_scores()
-
-    logger.info("[MAP] マップデータ構築")
-    properties, unmapped = build_map_data(df, coords, scores)
-    logger.info(f"[MAP] マップ表示: {len(properties)}件, 未マッピング: {len(unmapped)}件")
-
-    logger.info("[MAP] HTML生成")
-    render_html(properties, unmapped, MAP_OUTPUT_PATH)
-    logger.info(f"[MAP] マップHTML生成完了: {MAP_OUTPUT_PATH}")
-    return True
+# 物件評価モジュールのディレクトリ
+_EVAL_DIR = Path(__file__).resolve().parent.parent / "07_property_evaluation"
 
 
-def main():
-    parser = argparse.ArgumentParser(description="CI/CD パイプライン")
-    parser.add_argument("--sites", nargs="+", default=None, help="検索対象サイト (例: suumo homes)")
-    parser.add_argument("--ward", type=str, default=None, help="区名で絞り込み (例: 中央区)")
-    parser.add_argument("--limit", type=int, default=None, help="検索建物数の上限（テスト用）")
-    args = parser.parse_args()
+# =====================================================================
+# ステージ結果の追跡
+# =====================================================================
 
-    setup_logging()
-    logger.info("=== CI/CD パイプライン開始 ===")
+@dataclass
+class StageResult:
+    """各パイプラインステージの実行結果"""
+    name: str
+    success: bool
+    message: str = ""
+    duration_sec: float = 0
 
-    # 1. DB初期化
+
+def run_stage(name: str, func, *args, **kwargs) -> StageResult:
+    """ステージを実行し、結果をログ付きで返す共通ラッパー。
+
+    全ステージに統一的なログ出力・エラーハンドリング・所要時間計測を適用する。
+    """
+    logger.info(f"=== {name} 開始 ===")
+    start = time.time()
+
+    try:
+        result = func(*args, **kwargs)
+        elapsed = time.time() - start
+        msg = result if isinstance(result, str) else "完了"
+        logger.info(f"=== {name} 完了 ({elapsed:.1f}s) ===")
+        return StageResult(name=name, success=True, message=msg, duration_sec=elapsed)
+    except Exception as e:
+        elapsed = time.time() - start
+        logger.error(f"=== {name} 失敗 ({elapsed:.1f}s): {e} ===")
+        return StageResult(name=name, success=False, message=str(e), duration_sec=elapsed)
+
+
+# =====================================================================
+# 各ステージ
+# =====================================================================
+
+def stage_load_buildings(args) -> str:
+    """建物リスト読み込み・フィルタ・DB登録を行い、結果をコンテキストに格納する。"""
     init_db()
-    logger.info("DB初期化完了")
 
-    # 2. 建物リスト読み込み
     csv_path = str(BUILDINGS_CSV)
     if not BUILDINGS_CSV.exists():
         logger.info("Excelから建物名を抽出中...")
@@ -98,122 +104,215 @@ def main():
         groups = [g for g in groups if g.ward == args.ward]
         logger.info(f"Filtered to {len(groups)} buildings in {args.ward}")
 
-    # ユニット数の多い建物を優先
     groups.sort(key=lambda g: -g.unit_count)
 
     if args.limit:
         groups = groups[:args.limit]
         logger.info(f"Limited to {len(groups)} buildings")
 
-    # 3. 建物情報をDBに登録
     building_ids = load_buildings_to_db(groups)
     logger.info(f"Registered {len(building_ids)} buildings in DB")
 
-    # 4. スクレイピング実行
+    # パイプラインコンテキストに保存
+    _ctx["groups"] = groups
+    _ctx["building_ids"] = building_ids
+
+    return f"{len(groups)}棟登録"
+
+
+def stage_scrape(args) -> str:
+    """賃貸サイトスクレイピングを実行する。"""
+    groups = _ctx["groups"]
+    building_ids = _ctx["building_ids"]
     sites = args.sites or ENABLED_SITES
-    try:
-        total_stats = asyncio.run(
-            run_search(sites, groups, building_ids)
-        )
-        logger.info(
-            f"検索完了: {total_stats['searched']} searched, "
-            f"{total_stats['found']} found, {total_stats['new']} new, "
-            f"{total_stats['errors']} errors"
-        )
-    except Exception as e:
-        logger.error(f"スクレイピング中にエラー: {e}")
-        total_stats = {"searched": 0, "found": 0, "new": 0, "errors": 1}
 
-    # 5. SUUMO掲載の検証（未検証分のみ）
-    try:
-        with get_db() as conn:
-            unverified = get_unverified_suumo_listings(conn, ward=args.ward)
-        if unverified:
-            logger.info(f"=== SUUMO掲載検証開始: {len(unverified)}件 ===")
+    total_stats = asyncio.run(run_search(sites, groups, building_ids))
+    _ctx["total_stats"] = total_stats
 
-            async def run_verify():
-                scraper = VerificationScraper()
-                async with scraper:
-                    return await verify_all(unverified, scraper)
+    return (
+        f"検索{total_stats['searched']}, 発見{total_stats['found']}, "
+        f"新着{total_stats['new']}, エラー{total_stats['errors']}"
+    )
 
-            verify_results = asyncio.run(run_verify())
 
-            # 検証結果をDBに保存
-            with get_db() as conn:
-                for r in verify_results:
-                    upsert_verification(
-                        conn, r.listing_id,
-                        r.actual_name, r.actual_address,
-                        r.name_score, r.address_match,
-                        r.status, r.reason,
-                    )
-            print_summary(verify_results)
-            logger.info("検証結果をDBに保存しました")
+def stage_verify(args) -> str:
+    """SUUMO掲載の検証（未検証分のみ）を実行する。"""
+    with get_db() as conn:
+        unverified = get_unverified_suumo_listings(conn, ward=args.ward)
 
-            # mismatch/suspicious の掲載を非アクティブ化
-            with get_db() as conn:
-                result = conn.execute(
-                    """UPDATE listings SET is_active = 0
-                       WHERE id IN (
-                           SELECT v.listing_id FROM listing_verifications v
-                           WHERE v.status IN ('mismatch', 'suspicious')
-                       ) AND is_active = 1"""
-                )
-                if result.rowcount > 0:
-                    logger.info(f"検証NG掲載を非アクティブ化: {result.rowcount}件")
-        else:
-            logger.info("未検証のSUUMO掲載はありません")
-    except Exception as e:
-        logger.error(f"SUUMO検証エラー: {e}")
+    if not unverified:
+        return "未検証のSUUMO掲載なし"
 
-    # 6. Excel出力
-    try:
-        output_path = export_results()
-        logger.info(f"Excel exported to {output_path}")
-    except Exception as e:
-        logger.error(f"Excel出力エラー: {e}")
+    logger.info(f"SUUMO掲載検証: {len(unverified)}件")
 
-    # 7. 物件評価実行（サブプロセスで実行: config衝突回避）
-    try:
-        import subprocess
-        eval_script = _EVAL_DIR / "evaluate.py"
-        if eval_script.exists():
-            logger.info("=== 物件評価開始 ===")
-            result = subprocess.run(
-                [sys.executable, str(eval_script)],
-                capture_output=True, text=True, timeout=120,
-                cwd=str(_EVAL_DIR),
-                env={**__import__("os").environ, "PYTHONIOENCODING": "utf-8"},
+    async def _run_verify():
+        scraper = VerificationScraper()
+        async with scraper:
+            return await verify_all(unverified, scraper)
+
+    verify_results = asyncio.run(_run_verify())
+
+    # 検証結果をDBに保存
+    with get_db() as conn:
+        for r in verify_results:
+            upsert_verification(
+                conn, r.listing_id,
+                r.actual_name, r.actual_address,
+                r.name_score, r.address_match,
+                r.status, r.reason,
             )
-            if result.returncode == 0:
-                logger.info("物件評価完了")
-            else:
-                logger.warning(f"物件評価で警告: {result.stderr[:500] if result.stderr else 'N/A'}")
-        else:
-            logger.warning("評価スクリプトが見つかりません")
-    except Exception as e:
-        logger.error(f"物件評価エラー（パイプライン続行）: {e}")
+    print_verify_summary(verify_results)
 
-    # 8. LINE通知
-    if total_stats.get("new", 0) > 0:
-        try:
-            with get_db() as conn:
-                new_listings = get_new_listings_today(conn)
-            if new_listings:
-                send_new_listing_notification(new_listings)
-                logger.info(f"Sent LINE notification for {len(new_listings)} new listings")
-        except Exception as e:
-            logger.error(f"LINE通知エラー: {e}")
+    # mismatch/suspicious の掲載を非アクティブ化
+    with get_db() as conn:
+        result = conn.execute(
+            """UPDATE listings SET is_active = 0
+               WHERE id IN (
+                   SELECT v.listing_id FROM listing_verifications v
+                   WHERE v.status IN ('mismatch', 'suspicious')
+               ) AND is_active = 1"""
+        )
+        deactivated = result.rowcount
 
-    # 9. マップHTML生成
-    try:
-        generate_map()
-    except Exception as e:
-        logger.error(f"マップ生成エラー: {e}")
+    msg = f"検証{len(verify_results)}件"
+    if deactivated > 0:
+        msg += f", NG{deactivated}件を非アクティブ化"
+    return msg
+
+
+def stage_export() -> str:
+    """検索結果をExcelファイルに出力する。"""
+    output_path = export_results()
+    return f"{output_path.name}"
+
+
+def stage_evaluate() -> str:
+    """物件評価を実行する（サブプロセス: config衝突回避）。"""
+    eval_script = _EVAL_DIR / "evaluate.py"
+    if not eval_script.exists():
+        return "評価スクリプト未検出（スキップ）"
+
+    import os
+    result = subprocess.run(
+        [sys.executable, str(eval_script)],
+        capture_output=True, text=True, timeout=120,
+        cwd=str(_EVAL_DIR),
+        env={**os.environ, "PYTHONIOENCODING": "utf-8"},
+    )
+
+    if result.returncode == 0:
+        return "評価完了"
+    else:
+        stderr_preview = result.stderr[:300] if result.stderr else "N/A"
+        logger.warning(f"物件評価で警告: {stderr_preview}")
+        return f"警告あり（returncode={result.returncode}）"
+
+
+def stage_notify() -> str:
+    """新着物件のLINE通知を送信する。"""
+    total_stats = _ctx.get("total_stats", {})
+    if total_stats.get("new", 0) == 0:
+        return "新着なし（通知スキップ）"
+
+    with get_db() as conn:
+        new_listings = get_new_listings_today(conn)
+
+    if not new_listings:
+        return "新着データなし"
+
+    send_new_listing_notification(new_listings)
+    return f"{len(new_listings)}件通知送信"
+
+
+def stage_generate_map() -> str:
+    """Excel出力からマップHTMLを生成する。"""
+    excel_path = find_latest_excel()
+    if not excel_path or not excel_path.exists():
+        return "Excelファイル未検出（スキップ）"
+
+    df = load_listings(excel_path)
+    coords = geocode_all(df)
+    scores = load_evaluation_scores()
+    properties, unmapped = build_map_data(df, coords, scores)
+
+    render_html(properties, unmapped, MAP_OUTPUT_PATH)
+    return f"マップ{len(properties)}件, 未マッピング{len(unmapped)}件"
+
+
+# =====================================================================
+# パイプラインオーケストレーター
+# =====================================================================
+
+# ステージ間でデータを受け渡すコンテキスト
+_ctx: dict = {}
+
+
+def print_summary(stages: list[StageResult]) -> None:
+    """全ステージの実行結果をサマリー表示する。"""
+    total_sec = sum(s.duration_sec for s in stages)
+    succeeded = sum(1 for s in stages if s.success)
+    failed = sum(1 for s in stages if not s.success)
+
+    print(f"\n{'='*60}")
+    print(f"  パイプライン実行サマリー")
+    print(f"{'='*60}")
+    print(f"  {'ステージ':<22} {'結果':<6} {'時間':>7}  {'詳細'}")
+    print(f"  {'-'*56}")
+
+    for s in stages:
+        icon = "OK" if s.success else "FAIL"
+        time_str = f"{s.duration_sec:.1f}s"
+        print(f"  {s.name:<22} {icon:<6} {time_str:>7}  {s.message}")
+
+    print(f"  {'-'*56}")
+    print(f"  合計: {succeeded}成功, {failed}失敗, {total_sec:.1f}s")
+    print(f"{'='*60}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="CI/CD パイプライン")
+    parser.add_argument("--sites", nargs="+", default=None, help="検索対象サイト (例: suumo homes)")
+    parser.add_argument("--ward", type=str, default=None, help="区名で絞り込み (例: 中央区)")
+    parser.add_argument("--limit", type=int, default=None, help="検索建物数の上限（テスト用）")
+    args = parser.parse_args()
+
+    setup_logging()
+    logger.info("=== CI/CD パイプライン開始 ===")
+
+    stages: list[StageResult] = []
+
+    # ── Stage 1: 建物リスト読み込み・DB登録 ──
+    r = run_stage("建物リスト読み込み", stage_load_buildings, args)
+    stages.append(r)
+    if not r.success:
+        print_summary(stages)
+        sys.exit(1)
+
+    # ── Stage 2: スクレイピング ──
+    stages.append(run_stage("スクレイピング", stage_scrape, args))
+
+    # ── Stage 3: SUUMO掲載検証 ──
+    stages.append(run_stage("SUUMO掲載検証", stage_verify, args))
+
+    # ── Stage 4: Excel出力 ──
+    stages.append(run_stage("Excel出力", stage_export))
+
+    # ── Stage 5: 物件評価 ──
+    stages.append(run_stage("物件評価", stage_evaluate))
+
+    # ── Stage 6: LINE通知 ──
+    stages.append(run_stage("LINE通知", stage_notify))
+
+    # ── Stage 7: マップ生成 ──
+    stages.append(run_stage("マップ生成", stage_generate_map))
+
+    # ── サマリー出力 ──
+    print_summary(stages)
 
     logger.info("=== CI/CD パイプライン完了 ===")
 
-    # スクレイピングのエラーだけでは失敗にしない（部分的な結果も価値がある）
+    # スクレイピングが完全に失敗した場合のみ終了コード1
+    total_stats = _ctx.get("total_stats", {})
     if total_stats.get("searched", 0) == 0 and total_stats.get("errors", 0) > 0:
         sys.exit(1)
 

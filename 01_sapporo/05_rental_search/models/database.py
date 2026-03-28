@@ -135,6 +135,28 @@ CREATE TABLE IF NOT EXISTS listing_verifications (
     UNIQUE(listing_id)
 );
 
+-- 物件評価スコア
+CREATE TABLE IF NOT EXISTS evaluation_scores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    listing_id INTEGER REFERENCES listings(id),
+    business_type TEXT DEFAULT 'minpaku',
+    total_score REAL,
+    score_profitability REAL,
+    score_location REAL,
+    score_demand REAL,
+    score_quality REAL,
+    score_risk REAL,
+    annual_revenue INTEGER,
+    annual_cost INTEGER,
+    annual_profit INTEGER,
+    annual_roi REAL,
+    weighted_avg_adr INTEGER,
+    similar_count INTEGER,
+    estimated_capacity INTEGER,
+    evaluated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(listing_id, business_type)
+);
+
 -- インデックス
 CREATE INDEX IF NOT EXISTS idx_listings_building ON listings(building_id);
 CREATE INDEX IF NOT EXISTS idx_listings_site ON listings(site_name);
@@ -144,6 +166,8 @@ CREATE INDEX IF NOT EXISTS idx_buildings_ward ON buildings(ward);
 CREATE INDEX IF NOT EXISTS idx_search_log_run ON search_log(run_id);
 CREATE INDEX IF NOT EXISTS idx_search_log_building_site ON search_log(building_id, site_name);
 CREATE INDEX IF NOT EXISTS idx_verifications_status ON listing_verifications(status);
+CREATE INDEX IF NOT EXISTS idx_eval_scores_listing ON evaluation_scores(listing_id);
+CREATE INDEX IF NOT EXISTS idx_eval_scores_total ON evaluation_scores(total_score);
 """
 
 
@@ -434,3 +458,84 @@ def upsert_verification(conn: sqlite3.Connection, listing_id: int,
         (listing_id, actual_name, actual_address, name_score,
          int(address_match), status, reason, datetime.now().isoformat()),
     )
+
+
+# --- Evaluation Scores ---
+
+def upsert_evaluation_score(conn: sqlite3.Connection, listing_id: int,
+                            business_type: str, scores: dict):
+    """評価スコアを挿入または更新"""
+    conn.execute(
+        """INSERT INTO evaluation_scores
+           (listing_id, business_type, total_score,
+            score_profitability, score_location, score_demand,
+            score_quality, score_risk,
+            annual_revenue, annual_cost, annual_profit, annual_roi,
+            weighted_avg_adr, similar_count, estimated_capacity,
+            evaluated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(listing_id, business_type) DO UPDATE SET
+             total_score = excluded.total_score,
+             score_profitability = excluded.score_profitability,
+             score_location = excluded.score_location,
+             score_demand = excluded.score_demand,
+             score_quality = excluded.score_quality,
+             score_risk = excluded.score_risk,
+             annual_revenue = excluded.annual_revenue,
+             annual_cost = excluded.annual_cost,
+             annual_profit = excluded.annual_profit,
+             annual_roi = excluded.annual_roi,
+             weighted_avg_adr = excluded.weighted_avg_adr,
+             similar_count = excluded.similar_count,
+             estimated_capacity = excluded.estimated_capacity,
+             evaluated_at = excluded.evaluated_at""",
+        (listing_id, business_type,
+         scores.get("total_score"),
+         scores.get("score_profitability"),
+         scores.get("score_location"),
+         scores.get("score_demand"),
+         scores.get("score_quality"),
+         scores.get("score_risk"),
+         scores.get("annual_revenue"),
+         scores.get("annual_cost"),
+         scores.get("annual_profit"),
+         scores.get("annual_roi"),
+         scores.get("weighted_avg_adr"),
+         scores.get("similar_count"),
+         scores.get("estimated_capacity"),
+         datetime.now().isoformat()),
+    )
+
+
+def get_evaluation_scores(conn: sqlite3.Connection,
+                          business_type: str = "minpaku") -> list[sqlite3.Row]:
+    """全評価スコアをlisting_url付きで取得"""
+    return conn.execute(
+        """SELECT e.*, l.listing_url
+           FROM evaluation_scores e
+           JOIN listings l ON e.listing_id = l.id
+           WHERE e.business_type = ?
+           ORDER BY e.total_score DESC""",
+        (business_type,),
+    ).fetchall()
+
+
+def get_evaluation_scores_dict(conn: sqlite3.Connection,
+                               business_type: str = "minpaku") -> dict[str, dict]:
+    """評価スコアを {listing_url: score_data} の辞書で返す"""
+    rows = get_evaluation_scores(conn, business_type)
+    result = {}
+    for row in rows:
+        url = row["listing_url"]
+        result[url] = {
+            "total_score": row["total_score"],
+            "score_profitability": row["score_profitability"],
+            "score_location": row["score_location"],
+            "score_demand": row["score_demand"],
+            "score_quality": row["score_quality"],
+            "score_risk": row["score_risk"],
+            "annual_profit": row["annual_profit"],
+            "annual_roi": row["annual_roi"],
+            "weighted_avg_adr": row["weighted_avg_adr"],
+        }
+    return result

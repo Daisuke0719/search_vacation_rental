@@ -46,8 +46,14 @@ def send_line_message(message: str) -> bool:
                 f"LINE API error: {response.status_code} {response.text}"
             )
             return False
-    except Exception as e:
-        logger.error(f"Failed to send LINE message: {e}")
+    except httpx.TimeoutException:
+        logger.error("LINE API request timed out")
+        return False
+    except httpx.ConnectError as e:
+        logger.error(f"LINE API connection error: {e}")
+        return False
+    except httpx.HTTPError as e:
+        logger.error(f"LINE API HTTP error: {type(e).__name__}: {e}")
         return False
 
 

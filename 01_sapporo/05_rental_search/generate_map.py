@@ -20,6 +20,7 @@ import pandas as pd
 import requests
 
 from config import OUTPUT_DIR
+from models.database import get_db, get_evaluation_scores_dict
 
 # ジオコーディングキャッシュ
 GEOCODE_CACHE_PATH = OUTPUT_DIR / "geocode_cache.json"
@@ -155,11 +156,23 @@ def format_yen(value) -> str:
 
 
 def load_evaluation_scores() -> dict:
-    """評価エンジンの結果を読み込み、listing_url → スコアdictのマッピングを返す。
+    """評価スコアを読み込み、listing_url → スコアdictのマッピングを返す。
 
-    evaluate.pyをサブプロセスで実行し、生成された最新Excelからスコアを読む。
-    既存の古いExcelではなく、実行直後のタイムスタンプで特定する。
+    優先順位:
+    1. rental_search.db の evaluation_scores テーブル（高速・最新）
+    2. Excel フォールバック（DBにデータが無い場合）
     """
+    # ── 1. DBから読み込み（優先） ──
+    try:
+        with get_db() as conn:
+            scores = get_evaluation_scores_dict(conn)
+        if scores:
+            print(f"  評価スコアをDBから読み込み: {len(scores)}件")
+            return scores
+    except Exception:
+        pass
+
+    # ── 2. Excelフォールバック ──
     try:
         import subprocess, sys as _sys
         eval_dir = Path(__file__).resolve().parent.parent / "07_property_evaluation"
@@ -170,27 +183,23 @@ def load_evaluation_scores() -> dict:
             print("  評価スクリプトが見つかりません")
             return {}
 
-        # 実行前の既存Excelを記録
         before = set(eval_output.glob("evaluation_*.xlsx")) if eval_output.exists() else set()
 
-        # evaluate.pyをサブプロセスで実行（config衝突回避）
         subprocess.run(
             [_sys.executable, eval_script],
             capture_output=True, timeout=120,
             cwd=str(eval_dir),
         )
 
-        # 実行後に新しく生成されたExcelを特定
         after = set(eval_output.glob("evaluation_*.xlsx")) if eval_output.exists() else set()
         new_excels = sorted(after - before)
 
-        # 新規Excelがなければ最新の既存Excelを使用
         target_excel = new_excels[-1] if new_excels else (sorted(after)[-1] if after else None)
         if not target_excel:
             print("  評価Excelが見つかりません")
             return {}
 
-        print(f"  評価Excel: {target_excel.name}")
+        print(f"  評価Excel（フォールバック）: {target_excel.name}")
         results_df = pd.read_excel(target_excel, sheet_name="総合ランキング")
         scores = {}
         for _, row in results_df.iterrows():
@@ -207,7 +216,7 @@ def load_evaluation_scores() -> dict:
                     "annual_roi": round(float(row.get("ROI(%)", 0)), 1),
                     "weighted_avg_adr": int(row.get("平均ADR", 0)),
                 }
-        print(f"  評価スコア読み込み: {len(scores)}件")
+        print(f"  評価スコア読み込み（フォールバック）: {len(scores)}件")
         return scores
     except Exception as e:
         print(f"  評価スコア読み込み失敗（スキップ）: {e}")
