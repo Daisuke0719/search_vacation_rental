@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS listings (
     building_age TEXT,
     nearest_station TEXT,
     walk_minutes INTEGER,
+    bath_toilet_separate INTEGER,
     first_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     last_seen_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     is_active INTEGER DEFAULT 1,
@@ -206,7 +207,8 @@ def upsert_listing(conn: sqlite3.Connection, building_id: int, site_name: str,
 
         for col in ["listing_title", "rent_price", "management_fee", "deposit",
                      "key_money", "floor_plan", "area_sqm", "floor_number",
-                     "building_age", "nearest_station", "walk_minutes"]:
+                     "building_age", "nearest_station", "walk_minutes",
+                     "bath_toilet_separate"]:
             if col in kwargs and kwargs[col] is not None:
                 columns.append(col)
                 values.append(kwargs[col])

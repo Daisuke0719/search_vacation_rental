@@ -16,6 +16,7 @@ import time
 from pathlib import Path
 
 import httpx
+import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -24,9 +25,75 @@ from models.database import get_db, get_all_active_listings
 
 logger = logging.getLogger(__name__)
 
+# 評価エンジンのパスを追加
+EVAL_MODULE_DIR = Path(__file__).resolve().parent.parent / "07_property_evaluation"
+
 NOTION_API_URL = "https://api.notion.com/v1"
 NOTION_VERSION = "2022-06-28"
 RATE_LIMIT_DELAY = 0.35  # Notion API: 3 requests/second
+
+
+def load_evaluation_scores() -> dict[str, dict]:
+    """評価エンジンの結果をExcelから読み込み、{listing_url: score_data} を返す。
+
+    07_property_evaluation/output/ の最新evaluation_*.xlsxを読む。
+    Excel列名とコード内の変数名のマッピングを行う。
+    """
+    scores: dict[str, dict] = {}
+    try:
+        eval_output = EVAL_MODULE_DIR / "output"
+        if not eval_output.exists():
+            logger.info("評価出力ディレクトリが見つかりません。スコアなしで同期します。")
+            return scores
+
+        eval_excels = sorted(eval_output.glob("evaluation_*.xlsx"))
+        if not eval_excels:
+            # まだ評価が実行されていない → evaluate.pyをサブプロセスで実行
+            import subprocess
+            eval_script = str(EVAL_MODULE_DIR / "evaluate.py")
+            if Path(eval_script).exists():
+                logger.info("評価Excel未発見 → evaluate.py を実行")
+                subprocess.run(
+                    [sys.executable, eval_script],
+                    capture_output=True, timeout=120,
+                    cwd=str(EVAL_MODULE_DIR),
+                )
+                eval_excels = sorted(eval_output.glob("evaluation_*.xlsx"))
+
+        if not eval_excels:
+            logger.info("評価Excelがありません。スコアなしで同期します。")
+            return scores
+
+        df = pd.read_excel(eval_excels[-1], sheet_name="総合ランキング")
+
+        # Excel列名→コード変数名のマッピング
+        col_map = {
+            "総合スコア": "total_score",
+            "収益性": "score_profitability",
+            "立地": "score_location",
+            "需要安定": "score_demand",
+            "物件適合": "score_quality",
+            "リスク": "score_risk",
+            "年間利益": "annual_profit",
+            "ROI(%)": "annual_roi",
+            "平均ADR": "weighted_avg_adr",
+        }
+
+        for _, row in df.iterrows():
+            url = row.get("掲載URL", "")
+            if not url or pd.isna(url):
+                continue
+            score_data = {}
+            for excel_col, code_key in col_map.items():
+                val = row.get(excel_col)
+                if val is not None and not (isinstance(val, float) and pd.isna(val)):
+                    score_data[code_key] = float(val)
+            scores[str(url)] = score_data
+
+        logger.info(f"評価スコアを {len(scores)} 件読み込みました。")
+    except Exception as e:
+        logger.warning(f"評価スコアの読み込みに失敗しました: {e}")
+    return scores
 
 
 def _headers() -> dict:
@@ -73,11 +140,15 @@ def query_all_pages(client: httpx.Client) -> dict[str, dict]:
                 status_prop = props.get("ステータス", {})
                 status_select = status_prop.get("select")
                 status = status_select.get("name", "") if status_select else ""
+                # 総合スコアを取得（変更検知用）
+                score_prop = props.get("総合スコア", {})
+                total_score = score_prop.get("number")
 
                 pages[listing_url] = {
                     "page_id": page["id"],
                     "status": status,
                     "rent": rent,
+                    "total_score": total_score,
                 }
 
         has_more = data.get("has_more", False)
@@ -86,7 +157,7 @@ def query_all_pages(client: httpx.Client) -> dict[str, dict]:
     return pages
 
 
-def _build_properties(row) -> dict:
+def _build_properties(row, score_data: dict | None = None) -> dict:
     """SQLite行からNotionプロパティを構築"""
     props = {
         "建物名": {"title": [{"text": {"content": row["building_name"] or ""}}]},
@@ -144,14 +215,32 @@ def _build_properties(row) -> dict:
     if row["last_seen_at"]:
         props["最終確認日"] = {"date": {"start": row["last_seen_at"][:10]}}
 
+    # 評価スコアを追加（score_dataがある場合のみ）
+    if score_data:
+        score_property_map = {
+            "total_score": "総合スコア",
+            "score_profitability": "収益性スコア",
+            "score_location": "立地スコア",
+            "score_demand": "需要スコア",
+            "score_quality": "品質スコア",
+            "score_risk": "リスクスコア",
+            "annual_profit": "年間利益（円）",
+            "annual_roi": "年間ROI（%）",
+            "weighted_avg_adr": "推定ADR（円）",
+        }
+        for key, notion_name in score_property_map.items():
+            val = score_data.get(key)
+            if val is not None:
+                props[notion_name] = {"number": round(val, 2)}
+
     return props
 
 
-def create_page(client: httpx.Client, row) -> str:
+def create_page(client: httpx.Client, row, score_data: dict | None = None) -> str:
     """Notionに新規ページを作成"""
     payload = {
         "parent": {"database_id": NOTION_DATABASE_ID},
-        "properties": _build_properties(row),
+        "properties": _build_properties(row, score_data),
     }
 
     _rate_limit()
@@ -162,9 +251,9 @@ def create_page(client: httpx.Client, row) -> str:
     return resp.json()["id"]
 
 
-def update_page(client: httpx.Client, page_id: str, row) -> None:
+def update_page(client: httpx.Client, page_id: str, row, score_data: dict | None = None) -> None:
     """既存のNotionページを更新"""
-    payload = {"properties": _build_properties(row)}
+    payload = {"properties": _build_properties(row, score_data)}
 
     _rate_limit()
     resp = client.patch(f"{NOTION_API_URL}/pages/{page_id}", json=payload)
@@ -194,6 +283,13 @@ def sync():
 
     logger.info("=== Notion同期開始 ===")
 
+    # 評価スコアを読み込み
+    try:
+        eval_scores = load_evaluation_scores()
+    except Exception as e:
+        logger.warning(f"評価スコア読み込みでエラー: {e}。スコアなしで同期します。")
+        eval_scores = {}
+
     # DBからアクティブ掲載を取得
     with get_db() as conn:
         active_listings = get_all_active_listings(conn)
@@ -217,6 +313,7 @@ def sync():
             url = row["listing_url"]
             active_urls.add(url)
 
+            score_data = eval_scores.get(url)
             try:
                 if url in existing_pages:
                     page_info = existing_pages[url]
@@ -225,12 +322,20 @@ def sync():
                         page_info["status"] != "Active"
                         or page_info["rent"] != row["rent_price"]
                     )
+                    # スコア変更の検知: スコアが未設定、または1点以上変化した場合
+                    if score_data and "total_score" in score_data:
+                        new_score = score_data["total_score"]
+                        existing_score = page_info.get("total_score")
+                        if existing_score is None:
+                            needs_update = True
+                        elif abs(new_score - existing_score) > 1.0:
+                            needs_update = True
                     if needs_update:
-                        update_page(client, page_info["page_id"], row)
+                        update_page(client, page_info["page_id"], row, score_data)
                         updated += 1
                         logger.debug(f"更新: {row['building_name']} ({url})")
                 else:
-                    create_page(client, row)
+                    create_page(client, row, score_data)
                     created += 1
                     logger.debug(f"作成: {row['building_name']} ({url})")
             except Exception as e:

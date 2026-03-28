@@ -154,8 +154,80 @@ def format_yen(value) -> str:
         return str(value)
 
 
-def build_map_data(df: pd.DataFrame, coords: dict) -> tuple:
+def load_evaluation_scores() -> dict:
+    """評価エンジンの結果を読み込み、listing_url → スコアdictのマッピングを返す。"""
+    try:
+        import subprocess, sys as _sys
+        eval_script = str(Path(__file__).resolve().parent.parent / "07_property_evaluation" / "evaluate.py")
+        eval_output = Path(__file__).resolve().parent.parent / "07_property_evaluation" / "output"
+
+        # evaluate.pyを別プロセスで実行（config衝突回避）
+        result = subprocess.run(
+            [_sys.executable, eval_script],
+            capture_output=True, text=True, timeout=120,
+            cwd=str(Path(eval_script).parent),
+        )
+
+        # 最新のExcelから結果を読む
+        eval_excels = sorted(eval_output.glob("evaluation_*.xlsx"))
+        if not eval_excels:
+            print(f"  評価Excelが見つかりません")
+            return {}
+
+        # Excel列名: 総合ランキングシート
+        results_df = pd.read_excel(eval_excels[-1], sheet_name="総合ランキング")
+        scores = {}
+        for _, row in results_df.iterrows():
+            url = row.get("掲載URL", "")
+            if url and not pd.isna(url):
+                scores[str(url)] = {
+                    "total_score": round(float(row.get("総合スコア", 0)), 1),
+                    "score_profitability": round(float(row.get("収益性", 0)), 1),
+                    "score_location": round(float(row.get("立地", 0)), 1),
+                    "score_demand": round(float(row.get("需要安定", 0)), 1),
+                    "score_quality": round(float(row.get("物件適合", 0)), 1),
+                    "score_risk": round(float(row.get("リスク", 0)), 1),
+                    "annual_profit": int(row.get("年間利益", 0)),
+                    "annual_roi": round(float(row.get("ROI(%)", 0)), 1),
+                    "weighted_avg_adr": int(row.get("平均ADR", 0)),
+                }
+        print(f"  評価スコア読み込み: {len(scores)}件")
+        return scores
+    except Exception as e:
+        print(f"  評価スコア読み込み失敗（スキップ）: {e}")
+        return {}
+
+
+def _score_to_color(score: float) -> str:
+    """総合スコアに応じたマーカーカラーを返す。"""
+    if score >= 68:
+        return "#10b981"  # emerald - 優良
+    if score >= 65:
+        return "#3b82f6"  # blue - 良好
+    if score >= 60:
+        return "#f59e0b"  # amber - 普通
+    if score >= 50:
+        return "#f97316"  # orange - 注意
+    return "#ef4444"      # red - 要検討
+
+
+def _score_to_rank(score: float) -> str:
+    """総合スコアからランクラベルを返す。"""
+    if score >= 68:
+        return "A"
+    if score >= 65:
+        return "B"
+    if score >= 60:
+        return "C"
+    if score >= 50:
+        return "D"
+    return "E"
+
+
+def build_map_data(df: pd.DataFrame, coords: dict, scores: dict | None = None) -> tuple:
     """物件データと座標をマージし、マップ用データを構築"""
+    if scores is None:
+        scores = {}
     properties = []
     unmapped = []
 
@@ -189,6 +261,18 @@ def build_map_data(df: pd.DataFrame, coords: dict) -> tuple:
         rent = row.get("家賃（円）")
         rent_num = int(rent) if not pd.isna(rent) else 0
 
+        # 評価スコアを統合
+        url = str(row.get("URL", ""))
+        eval_data = scores.get(url, {})
+        total_score = eval_data.get("total_score", 0)
+        has_score = total_score > 0
+
+        # スコアがあればスコアベースの色、なければ間取りベースの色
+        if has_score:
+            marker_color = _score_to_color(total_score)
+        else:
+            marker_color = CATEGORY_COLORS[category]
+
         prop = {
             "lat": round(lat, 7),
             "lng": round(lng, 7),
@@ -208,9 +292,20 @@ def build_map_data(df: pd.DataFrame, coords: dict) -> tuple:
             "station": str(row.get("最寄駅", "")) if not pd.isna(row.get("最寄駅")) else "",
             "walk_min": str(row.get("徒歩（分）", "")) if not pd.isna(row.get("徒歩（分）")) else "",
             "site": str(row.get("サイト", "")) if not pd.isna(row.get("サイト")) else "",
-            "url": str(row.get("URL", "")),
+            "url": url,
             "category": category,
-            "color": CATEGORY_COLORS[category],
+            "color": marker_color,
+            # 評価データ
+            "score": total_score,
+            "rank": _score_to_rank(total_score) if has_score else "",
+            "s_profit": eval_data.get("score_profitability", 0),
+            "s_loc": eval_data.get("score_location", 0),
+            "s_demand": eval_data.get("score_demand", 0),
+            "s_quality": eval_data.get("score_quality", 0),
+            "s_risk": eval_data.get("score_risk", 0),
+            "profit": eval_data.get("annual_profit", 0),
+            "roi": eval_data.get("annual_roi", 0),
+            "adr": eval_data.get("weighted_avg_adr", 0),
         }
         properties.append(prop)
 
@@ -218,11 +313,14 @@ def build_map_data(df: pd.DataFrame, coords: dict) -> tuple:
 
 
 def render_html(properties: list, unmapped: list, output_path: Path):
-    """Leaflet.jsベースのインタラクティブマップHTMLを生成"""
+    """Leaflet.jsベースのインタラクティブマップHTMLを生成（評価スコア統合版）"""
     props_json = json.dumps(properties, ensure_ascii=False)
     unmapped_json = json.dumps(unmapped, ensure_ascii=False)
     category_colors_json = json.dumps(CATEGORY_COLORS, ensure_ascii=False)
     category_labels_json = json.dumps(CATEGORY_LABELS, ensure_ascii=False)
+
+    # 評価スコアの有無
+    has_scores = any(p.get("score", 0) > 0 for p in properties)
 
     # 家賃の範囲を算出
     rents = [p["rent"] for p in properties if p["rent"] > 0]
@@ -232,12 +330,21 @@ def render_html(properties: list, unmapped: list, output_path: Path):
     slider_min = (rent_min // 10000) * 10000
     slider_max = ((rent_max // 10000) + 1) * 10000
 
+    # スコアレンジ凡例データ
+    score_ranges_json = json.dumps([
+        {"min": 68, "label": "A 優良", "color": "#10b981"},
+        {"min": 65, "label": "B 良好", "color": "#3b82f6"},
+        {"min": 60, "label": "C 普通", "color": "#f59e0b"},
+        {"min": 50, "label": "D 注意", "color": "#f97316"},
+        {"min": 0,  "label": "E 要検討", "color": "#ef4444"},
+    ], ensure_ascii=False)
+
     html = f"""<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>賃貸物件マップ - 札幌</title>
+<title>民泊物件評価マップ - 札幌</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
@@ -399,6 +506,55 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sa
   padding: 4px 8px; text-align: left; border-bottom: 1px solid #eee;
 }}
 
+/* 評価スコア: ポップアップ */
+.popup-eval {{
+  margin: 8px 0; padding: 8px; background: #f8fafc;
+  border-radius: 8px; border: 1px solid #e2e8f0;
+}}
+.popup-eval-header {{
+  display: flex; align-items: flex-start; gap: 10px; margin-bottom: 4px;
+}}
+.popup-score-badge {{
+  display: flex; align-items: center; gap: 6px;
+  border: 2px solid; border-radius: 8px; padding: 4px 8px; flex-shrink: 0;
+}}
+.popup-score-badge .rank {{
+  color: #fff; font-weight: 800; font-size: 16px;
+  padding: 2px 7px; border-radius: 4px; line-height: 1;
+}}
+.popup-score-badge .pts {{
+  font-size: 18px; font-weight: 700; color: #1e293b;
+}}
+.popup-score-badge .pts small {{ font-size: 11px; color: #94a3b8; font-weight: 400; }}
+.popup-eval-kpi {{
+  font-size: 11px; display: flex; flex-direction: column; gap: 2px; flex: 1;
+}}
+.popup-eval-kpi .kpi-label {{ color: #94a3b8; margin-right: 4px; }}
+.popup-eval-kpi .kpi-value {{ font-weight: 600; color: #334155; }}
+.popup-eval-kpi .kpi-value.positive {{ color: #10b981; }}
+.popup-eval-kpi .kpi-value.negative {{ color: #ef4444; }}
+
+/* 評価スコア: サイドバー */
+.list-rank {{
+  display: inline-block; color: #fff; font-weight: 700; font-size: 10px;
+  padding: 1px 5px; border-radius: 3px; margin-right: 4px; vertical-align: middle;
+}}
+.list-score {{
+  font-weight: 600; color: #3b82f6; font-size: 11px;
+}}
+.list-profit {{
+  font-size: 11px; font-weight: 600;
+}}
+.list-profit.positive {{ color: #10b981; }}
+.list-profit.negative {{ color: #ef4444; }}
+
+/* ソートセレクト */
+#sort-select {{
+  width: 100%; padding: 5px 8px; border: 1px solid #ddd;
+  border-radius: 6px; font-size: 12px; color: #333;
+  background: #fff; cursor: pointer;
+}}
+
 /* レスポンシブ */
 @media (max-width: 768px) {{
   #sidebar {{ width: 100%; }}
@@ -417,7 +573,7 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sa
 <!-- サイドバー -->
 <div id="sidebar">
   <div id="sidebar-header">
-    <h1>賃貸物件一覧</h1>
+    <h1>民泊物件評価マップ</h1>
     <div id="count-badge">表示中: <span id="visible-count">0</span> / <span id="total-count">0</span>件</div>
   </div>
   <div id="property-list"></div>
@@ -443,6 +599,20 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sa
           <span id="rent-max-label">{format_yen(slider_max)}</span>
         </div>
       </div>
+    </div>
+    <div class="filter-section" id="score-filter-section" style="display:{'block' if has_scores else 'none'}">
+      <div class="filter-label">評価ランク</div>
+      <div id="rank-filters"></div>
+    </div>
+    <div class="filter-section" id="sort-section" style="display:{'block' if has_scores else 'none'}">
+      <div class="filter-label">並び替え</div>
+      <select id="sort-select">
+        <option value="score-desc">スコア高い順</option>
+        <option value="rent-asc">家賃安い順</option>
+        <option value="rent-desc">家賃高い順</option>
+        <option value="profit-desc">利益高い順</option>
+        <option value="roi-desc">ROI高い順</option>
+      </select>
     </div>
     <button id="reset-btn">すべて表示</button>
   </div>
@@ -508,6 +678,61 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sa
     }});
   }}
 
+  // スコア用SVGレーダーチャート生成
+  function radarSvg(p) {{
+    if (!p.score) return '';
+    const dims = [
+      {{ label: '収益', val: p.s_profit, max: 30 }},
+      {{ label: '立地', val: p.s_loc, max: 20 }},
+      {{ label: '需要', val: p.s_demand, max: 15 }},
+      {{ label: '品質', val: p.s_quality, max: 20 }},
+      {{ label: 'リスク', val: p.s_risk, max: 15 }},
+    ];
+    const cx = 60, cy = 60, r = 42;
+    const n = dims.length;
+    function xy(i, ratio) {{
+      const a = (Math.PI * 2 * i / n) - Math.PI / 2;
+      return [cx + r * ratio * Math.cos(a), cy + r * ratio * Math.sin(a)];
+    }}
+    // 背景の同心五角形
+    let bg = '';
+    for (const lvl of [0.25, 0.5, 0.75, 1.0]) {{
+      const pts = dims.map((_, i) => xy(i, lvl).join(',')).join(' ');
+      bg += `<polygon points="${{pts}}" fill="none" stroke="#e2e8f0" stroke-width="0.5"/>`;
+    }}
+    // 軸線
+    let axes = '';
+    dims.forEach((_, i) => {{
+      const [x, y] = xy(i, 1);
+      axes += `<line x1="${{cx}}" y1="${{cy}}" x2="${{x}}" y2="${{y}}" stroke="#e2e8f0" stroke-width="0.5"/>`;
+    }});
+    // データポリゴン
+    const dataPts = dims.map((d, i) => xy(i, d.val / d.max).join(',')).join(' ');
+    // ラベル
+    let labels = '';
+    dims.forEach((d, i) => {{
+      const [x, y] = xy(i, 1.28);
+      const pct = Math.round(d.val / d.max * 100);
+      labels += `<text x="${{x}}" y="${{y}}" text-anchor="middle" dominant-baseline="central" font-size="8" fill="#64748b">${{d.label}}</text>`;
+    }});
+    return `<svg width="120" height="120" viewBox="0 0 120 120" style="display:block;margin:4px auto">
+      ${{bg}}${{axes}}
+      <polygon points="${{dataPts}}" fill="rgba(59,130,246,0.2)" stroke="#3b82f6" stroke-width="1.5"/>
+      ${{labels}}
+    </svg>`;
+  }}
+
+  // スコアバッジ
+  function scoreBadge(p) {{
+    if (!p.score) return '';
+    const colors = {{ A:'#10b981', B:'#3b82f6', C:'#f59e0b', D:'#f97316', E:'#ef4444' }};
+    const c = colors[p.rank] || '#94a3b8';
+    return `<div class="popup-score-badge" style="border-color:${{c}}">
+      <span class="rank" style="background:${{c}}">${{p.rank}}</span>
+      <span class="pts">${{p.score}}<small>/100</small></span>
+    </div>`;
+  }}
+
   // ポップアップHTML生成
   function popupHtml(p) {{
     let rows = '';
@@ -519,9 +744,27 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sa
     rows += `<div class="popup-row"><span class="label">住所</span><span class="value">${{p.address}}</span></div>`;
     if (p.site) rows += `<div class="popup-row"><span class="label">サイト</span><span class="value">${{p.site}}</span></div>`;
 
+    // 評価セクション
+    let evalSection = '';
+    if (p.score) {{
+      evalSection = `
+        <div class="popup-eval">
+          <div class="popup-eval-header">
+            ${{scoreBadge(p)}}
+            <div class="popup-eval-kpi">
+              <div><span class="kpi-label">年間利益</span><span class="kpi-value ${{p.profit >= 0 ? 'positive' : 'negative'}}">${{p.profit >= 0 ? '+' : ''}}${{Number(p.profit).toLocaleString()}}円</span></div>
+              <div><span class="kpi-label">ROI</span><span class="kpi-value">${{p.roi}}%</span></div>
+              <div><span class="kpi-label">想定ADR</span><span class="kpi-value">¥${{Number(p.adr).toLocaleString()}}</span></div>
+            </div>
+          </div>
+          ${{radarSvg(p)}}
+        </div>`;
+    }}
+
     return `
       <div class="popup-title">${{p.building}}</div>
       <div class="popup-rent">${{p.rent_fmt}} <span class="mgmt">+ 管理費 ${{p.mgmt_fee}}</span></div>
+      ${{evalSection}}
       ${{rows}}
       ${{p.url ? `<a class="popup-link" href="${{p.url}}" target="_blank" rel="noopener">詳細を見る →</a>` : ''}}
     `;
@@ -536,7 +779,8 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sa
       icon: createIcon(p.color)
     }});
     marker.bindPopup(popupHtml(p), {{ maxWidth: 300, closeButton: true }});
-    marker.bindTooltip(`${{p.building}} - ${{p.rent_fmt}} - ${{p.layout}}`, {{
+    const ttScore = p.score ? ` [${{p.rank}}${{p.score}}pt]` : '';
+    marker.bindTooltip(`${{p.building}} - ${{p.rent_fmt}} - ${{p.layout}}${{ttScore}}`, {{
       direction: 'top', offset: [0, -8], opacity: 0.92
     }});
     marker._propData = p;
@@ -564,13 +808,19 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sa
     filtered.forEach((p, idx) => {{
       const item = document.createElement('div');
       item.className = 'property-item';
+      const rankBadge = p.rank
+        ? `<span class="list-rank" style="background:${{p.color}}">${{p.rank}}</span>`
+        : `<span class="dot" style="background:${{p.color}}"></span>`;
+      const scoreInfo = p.score
+        ? `<span class="list-score">${{p.score}}pt</span><span class="list-profit ${{p.profit >= 0 ? 'positive' : 'negative'}}">${{p.profit >= 0 ? '+' : ''}}${{Math.round(p.profit/10000)}}万/年</span>`
+        : '';
       item.innerHTML = `
-        <div class="prop-name"><span class="dot" style="background:${{p.color}}"></span>${{p.building}}</div>
+        <div class="prop-name">${{rankBadge}}${{p.building}}</div>
         <div class="prop-meta">
           <span>${{p.rent_fmt}}</span>
           <span>${{p.layout}}</span>
           ${{p.area ? '<span>' + p.area + '</span>' : ''}}
-          ${{p.ward ? '<span>' + p.ward + '</span>' : ''}}
+          ${{scoreInfo}}
         </div>
       `;
       item.addEventListener('click', () => {{
@@ -610,6 +860,12 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sa
       checkedCats.add(cb.dataset.cat);
     }});
 
+    // ランクフィルタ
+    const checkedRanks = new Set();
+    document.querySelectorAll('#rank-filters input[type=checkbox]:checked').forEach(cb => {{
+      checkedRanks.add(cb.dataset.rank);
+    }});
+
     let rMin = parseInt(rentMinSlider.value);
     let rMax = parseInt(rentMaxSlider.value);
     if (rMin > rMax) {{ [rMin, rMax] = [rMax, rMin]; }}
@@ -622,13 +878,40 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sa
     properties.forEach((p, i) => {{
       const catMatch = checkedCats.has(p.category);
       const rentMatch = (p.rent === 0) || (p.rent >= rMin && p.rent <= rMax);
-      if (catMatch && rentMatch) {{
+      const rankMatch = !hasScores || checkedRanks.size === 0 || !p.rank || checkedRanks.has(p.rank);
+      if (catMatch && rentMatch && rankMatch) {{
         clusterGroup.addLayer(markers[i]);
         filtered.push({{ ...p, _origIndex: i }});
       }}
     }});
 
+    // ソート
+    const sortVal = sortSelect ? sortSelect.value : 'score-desc';
+    const sortFns = {{
+      'score-desc': (a, b) => (b.score || 0) - (a.score || 0),
+      'rent-asc':   (a, b) => a.rent - b.rent,
+      'rent-desc':  (a, b) => b.rent - a.rent,
+      'profit-desc': (a, b) => (b.profit || 0) - (a.profit || 0),
+      'roi-desc':   (a, b) => (b.roi || 0) - (a.roi || 0),
+    }};
+    if (sortFns[sortVal]) filtered.sort(sortFns[sortVal]);
+
     renderList(filtered);
+  }}
+
+  // ランクフィルタ生成
+  if (hasScores) {{
+    const rankFiltersEl = document.getElementById('rank-filters');
+    scoreRanges.forEach(sr => {{
+      const label = document.createElement('label');
+      label.innerHTML = `<input type="checkbox" data-rank="${{sr.label[0]}}" checked>
+        <span class="dot" style="background:${{sr.color}};width:10px;height:10px;border-radius:50%;display:inline-block"></span>
+        ${{sr.label}}`;
+      rankFiltersEl.appendChild(label);
+    }});
+    document.querySelectorAll('#rank-filters input').forEach(cb => {{
+      cb.addEventListener('change', applyFilters);
+    }});
   }}
 
   document.querySelectorAll('#layout-filters input').forEach(cb => {{
@@ -637,10 +920,18 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sa
   rentMinSlider.addEventListener('input', applyFilters);
   rentMaxSlider.addEventListener('input', applyFilters);
 
+  // ソート
+  const sortSelect = document.getElementById('sort-select');
+  if (sortSelect) {{
+    sortSelect.addEventListener('change', applyFilters);
+  }}
+
   document.getElementById('reset-btn').addEventListener('click', () => {{
     document.querySelectorAll('#layout-filters input').forEach(cb => {{ cb.checked = true; }});
+    document.querySelectorAll('#rank-filters input').forEach(cb => {{ cb.checked = true; }});
     rentMinSlider.value = rentMinSlider.min;
     rentMaxSlider.value = rentMaxSlider.max;
+    if (sortSelect) sortSelect.value = 'score-desc';
     applyFilters();
   }});
 
@@ -664,12 +955,23 @@ body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sa
 
   // --- 凡例 ---
   const legendItems = document.getElementById('legend-items');
-  Object.keys(categoryLabels).forEach(cat => {{
-    const item = document.createElement('div');
-    item.className = 'legend-item';
-    item.innerHTML = `<span class="legend-dot" style="background:${{categoryColors[cat]}}"></span>${{categoryLabels[cat]}}`;
-    legendItems.appendChild(item);
-  }});
+  const hasScores = {str(has_scores).lower()};
+  const scoreRanges = {score_ranges_json};
+  if (hasScores) {{
+    scoreRanges.forEach(sr => {{
+      const item = document.createElement('div');
+      item.className = 'legend-item';
+      item.innerHTML = `<span class="legend-dot" style="background:${{sr.color}}"></span>${{sr.label}}`;
+      legendItems.appendChild(item);
+    }});
+  }} else {{
+    Object.keys(categoryLabels).forEach(cat => {{
+      const item = document.createElement('div');
+      item.className = 'legend-item';
+      item.innerHTML = `<span class="legend-dot" style="background:${{categoryColors[cat]}}"></span>${{categoryLabels[cat]}}`;
+      legendItems.appendChild(item);
+    }});
+  }}
 
   // --- 未マッピング物件 ---
   if (unmapped.length > 0) {{
@@ -728,11 +1030,14 @@ def main():
     print(f"\n[2/4] ジオコーディング（国土地理院API）")
     coords = geocode_all(df)
 
-    print(f"\n[3/4] マップデータ構築")
-    properties, unmapped = build_map_data(df, coords)
+    print(f"\n[3/5] 評価スコア読み込み")
+    scores = load_evaluation_scores()
+
+    print(f"\n[4/5] マップデータ構築")
+    properties, unmapped = build_map_data(df, coords, scores)
     print(f"  マップ表示: {len(properties)}件, 未マッピング: {len(unmapped)}件")
 
-    print(f"\n[4/4] HTML生成")
+    print(f"\n[5/5] HTML生成")
     render_html(properties, unmapped, MAP_OUTPUT_PATH)
 
     print(f"\n完了! ブラウザで開きます...")

@@ -93,6 +93,14 @@ jobs:
           path: ${{ env.WORK_DIR }}/output/rental_search_results_*.xlsx
           retention-days: 30
 
+      - name: Upload evaluation results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evaluation-results-${{ github.run_number }}
+          path: 01_sapporo/07_property_evaluation/output/evaluation_*.xlsx
+          retention-days: 30
+
       - name: Upload logs
         uses: actions/upload-artifact@v4
         if: always()
@@ -109,6 +117,7 @@ jobs:
           git add ${{ env.WORK_DIR }}/db/rental_search.db || true
           git add ${{ env.WORK_DIR }}/output/geocode_cache.json || true
           git add ${{ env.WORK_DIR }}/output/buildings.csv || true
+          git add 01_sapporo/07_property_evaluation/output/ || true
           git diff --cached --quiet || git commit -m "chore: update DB and caches [ci skip]"
           git pull --rebase || true
           git push

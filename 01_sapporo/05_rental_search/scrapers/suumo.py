@@ -106,6 +106,9 @@ class SuumoScraper(BaseScraper):
         else:
             title_text = building_name
 
+        # 建物レベルの情報を抽出（築年数、最寄駅、徒歩分）
+        building_info = await self._parse_building_info(casset)
+
         # 各物件（部屋）のテーブル行を取得
         # SUUMOは1つのカセットに複数の部屋が表示される
         table_rows = await casset.query_selector_all(".js-cassette_link, tbody tr")
@@ -115,6 +118,13 @@ class SuumoScraper(BaseScraper):
             try:
                 listing = await self._parse_room_row(row, title_text)
                 if listing:
+                    # 建物レベルの情報をマージ
+                    if building_info.get("building_age") and not listing.building_age:
+                        listing.building_age = building_info["building_age"]
+                    if building_info.get("nearest_station") and not listing.nearest_station:
+                        listing.nearest_station = building_info["nearest_station"]
+                    if building_info.get("walk_minutes") and not listing.walk_minutes:
+                        listing.walk_minutes = building_info["walk_minutes"]
                     listings.append(listing)
             except Exception:
                 continue
@@ -123,9 +133,63 @@ class SuumoScraper(BaseScraper):
         if not listings:
             listing = await self._parse_casset_simple(casset, title_text)
             if listing:
+                if building_info.get("building_age"):
+                    listing.building_age = building_info["building_age"]
+                if building_info.get("nearest_station"):
+                    listing.nearest_station = building_info["nearest_station"]
+                if building_info.get("walk_minutes"):
+                    listing.walk_minutes = building_info["walk_minutes"]
                 return listing
 
         return listings[0] if listings else None
+
+    async def _parse_building_info(self, casset) -> dict:
+        """カセットから建物レベルの情報を抽出（築年数・最寄駅・徒歩分）"""
+        info: dict = {}
+
+        # 築年数: .cassetteitem_detail-col3 内に「築XX年」がある
+        try:
+            detail_cols = await casset.query_selector_all(
+                ".cassetteitem_detail-col3 div, .cassetteitem_detail-col3 span"
+            )
+            for col in detail_cols:
+                text = (await col.inner_text()).strip()
+                age_match = re.search(r"築(\d+)年", text)
+                if age_match:
+                    info["building_age"] = f"築{age_match.group(1)}年"
+                    break
+            # col3自体のテキストもチェック
+            if "building_age" not in info:
+                col3 = await casset.query_selector(".cassetteitem_detail-col3")
+                if col3:
+                    text = (await col3.inner_text()).strip()
+                    age_match = re.search(r"築(\d+)年", text)
+                    if age_match:
+                        info["building_age"] = f"築{age_match.group(1)}年"
+        except Exception:
+            pass
+
+        # 最寄駅・徒歩分: .cassetteitem_detail-col1 内
+        try:
+            station_el = await casset.query_selector(
+                ".cassetteitem_detail-col1 .cassetteitem_detail-text"
+            )
+            if not station_el:
+                station_el = await casset.query_selector(".cassetteitem_detail-col1")
+            if station_el:
+                station_text = (await station_el.inner_text()).strip()
+                # "地下鉄東豊線/学園前駅 歩4分" のようなパターン
+                walk_match = re.search(r"歩(\d+)分", station_text)
+                if walk_match:
+                    info["walk_minutes"] = int(walk_match.group(1))
+                # 駅名を抽出: "路線名/駅名" or "駅名"
+                station_name_match = re.search(r"(?:[^/]+/)?\s*(.+?駅)", station_text)
+                if station_name_match:
+                    info["nearest_station"] = station_name_match.group(1).strip()
+        except Exception:
+            pass
+
+        return info
 
     async def _parse_room_row(self, row, building_title: str) -> Optional[ListingResult]:
         """テーブル行から物件情報をパース"""
@@ -184,6 +248,9 @@ class SuumoScraper(BaseScraper):
         floor_el = await row.query_selector("[class*='col--floor'], td:nth-child(3)")
         floor_number = (await floor_el.inner_text()).strip() if floor_el else None
 
+        # バストイレ別の判定
+        bath_toilet_separate = await self._detect_bath_toilet_separate(row)
+
         return ListingResult(
             site_name="suumo",
             listing_url=url,
@@ -195,7 +262,35 @@ class SuumoScraper(BaseScraper):
             floor_plan=floor_plan,
             area_sqm=area_sqm,
             floor_number=floor_number,
+            bath_toilet_separate=bath_toilet_separate,
         )
+
+    async def _detect_bath_toilet_separate(self, element) -> Optional[int]:
+        """バストイレ別を検出する。1=別, 0=ユニット, None=不明"""
+        try:
+            text = (await element.inner_text()).strip()
+            if "バス・トイレ別" in text or "BT別" in text:
+                return 1
+            if "ユニットバス" in text or "UB" in text:
+                return 0
+        except Exception:
+            pass
+
+        # アイコンクラスで判定
+        try:
+            icons = await element.query_selector_all(
+                "li, span, [class*='icon'], [class*='cond']"
+            )
+            for icon in icons:
+                icon_text = (await icon.inner_text()).strip()
+                if "バス・トイレ別" in icon_text or "BT別" in icon_text:
+                    return 1
+                if "ユニットバス" in icon_text:
+                    return 0
+        except Exception:
+            pass
+
+        return None
 
     async def _parse_casset_simple(self, casset, building_title: str) -> Optional[ListingResult]:
         """カセット全体から簡易パース"""

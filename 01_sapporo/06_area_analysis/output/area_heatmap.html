@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html>
+<head>
+    
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/python-visualization/folium/folium/templates/leaflet.awesome.rotate.min.css"/>
+    
+            <meta name="viewport" content="width=device-width,
+                initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+                #map_d5ec122538e4ec1e9706d406a8a50971 {
+                    position: relative;
+                    width: 100.0%;
+                    height: 100.0%;
+                    left: 0.0%;
+                    top: 0.0%;
+                }
+                .leaflet-container { font-size: 1rem; }
+            </style>
+
+            <style>html, body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            </style>
+
+            <style>#map {
+                position:absolute;
+                top:0;
+                bottom:0;
+                right:0;
+                left:0;
+                }
+            </style>
+
+            <script>
+                L_NO_TOUCH = false;
+                L_DISABLE_3D = false;
+            </script>
+
+        
+</head>
+<body>
+    
+    
+    <div style="position: fixed; bottom: 24px; left: 24px; z-index: 999;
+         background: rgba(255,255,255,0.95); backdrop-filter: blur(10px);
+         padding: 16px 20px; border-radius: 12px;
+         box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+         font-family: -apple-system, 'Segoe UI', sans-serif; font-size: 12px;">
+        <div style="font-weight: 700; font-size: 13px; color: #1B2838; margin-bottom: 8px;">
+            民泊施設の分布</div>
+        <div style="color: #6B7B8D; line-height: 1.6;">
+            <span style="display: inline-block; width: 10px; height: 10px;
+                  border-radius: 50%; background: #E84855; margin-right: 6px;
+                  vertical-align: middle;"></span>高密度エリア<br>
+            <span style="display: inline-block; width: 10px; height: 10px;
+                  border-radius: 50%; background: #2B9EB3; margin-right: 6px;
+                  vertical-align: middle;"></span>中密度エリア<br>
+            <span style="display: inline-block; width: 10px; height: 10px;
+                  border-radius: 50%; background: #C4B5FD; margin-right: 6px;
+                  vertical-align: middle;"></span>低密度エリア
+        </div>
+        <div style="margin-top: 8px; font-size: 10px; color: #999;">
+            円の大きさ = 施設数<br>クリックで詳細表示</div>
+    </div>
+    
+    
+    <div style="position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+         z-index: 999; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px);
+         padding: 10px 24px; border-radius: 12px;
+         box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+         font-family: -apple-system, 'Segoe UI', sans-serif;">
+        <span style="font-size: 16px; font-weight: 700; color: #1B2838;">
+            札幌市 民泊エリアマップ</span>
+        <span style="font-size: 12px; color: #6B7B8D; margin-left: 12px;">
+            2026年3月時点 | 全2,756件</span>
+    </div>
+    
+    
+            <div class="folium-map" id="map_d5ec122538e4ec1e9706d406a8a50971" ></div>
+        
+</body>
+<script>
+    
+    
+            var map_d5ec122538e4ec1e9706d406a8a50971 = L.map(
+                "map_d5ec122538e4ec1e9706d406a8a50971",
+                {
+                    center: [43.055, 141.345],
+                    crs: L.CRS.EPSG3857,
+                    ...{
+  "zoom": 11,
+  "zoomControl": true,
+  "preferCanvas": false,
+}
+
+                }
+            );
+            L.control.scale().addTo(map_d5ec122538e4ec1e9706d406a8a50971);
+
+            
+
+        
+    
+            var tile_layer_78af41ea91ef588ae9359c9e1fc8b433 = L.tileLayer(
+                "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+                {
+  "minZoom": 0,
+  "maxZoom": 20,
+  "maxNativeZoom": 20,
+  "noWrap": false,
+  "attribution": "\u0026copy; \u003ca href=\"https://www.openstreetmap.org/copyright\"\u003eOpenStreetMap\u003c/a\u003e contributors \u0026copy; \u003ca href=\"https://carto.com/attributions\"\u003eCARTO\u003c/a\u003e",
+  "subdomains": "abcd",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            tile_layer_78af41ea91ef588ae9359c9e1fc8b433.addTo(map_d5ec122538e4ec1e9706d406a8a50971);
+        
+    
+            var circle_7628822ec7ce6d7f7673e34cbad52ef2 = L.circle(
+                [43.055, 141.341],
+                {"bubblingMouseEvents": true, "color": "#E84855", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#E84855", "fillOpacity": 0.35, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 0.8, "radius": 8443, "stroke": true, "weight": 2.5}
+            ).addTo(map_d5ec122538e4ec1e9706d406a8a50971);
+        
+    
+        var popup_8a2210a0468f9886d725c1b3c4669cb6 = L.popup({
+  "maxWidth": 320,
+});
+
+        
+            
+                var html_3c8dd65f747687e1a92c7fd8219ac16c = $(`<div id="html_3c8dd65f747687e1a92c7fd8219ac16c" style="width: 100.0%; height: 100.0%;">         <div style="font-family: -apple-system, 'Segoe UI', sans-serif; width: 280px; padding: 4px;">             <div style="display: flex; align-items: center; margin-bottom: 10px;">                 <div style="width: 12px; height: 12px; border-radius: 50%;                      background: #E84855; margin-right: 8px;"></div>                 <h3 style="margin: 0; font-size: 18px; color: #1B2838;">中央区</h3>             </div>             <table style="font-size: 13px; width: 100%; border-collapse: collapse; line-height: 1.8;">                 <tr><td style="color: #6B7B8D;">民泊施設数</td>                     <td style="font-weight: 700; text-align: right; font-size: 15px;">1473                     <span style="font-size: 11px; color: #888; font-weight: 400;">(53.4%)</span></td></tr>                 <tr><td style="color: #6B7B8D;">密度</td>                     <td style="text-align: right;">31.73/km² ・ 5.85/千人</td></tr>                 <tr><td style="color: #6B7B8D;">YoY成長率</td>                     <td style="text-align: right; color: #2B9EB3;">                     +88.0%</td></tr>                 <tr><td colspan="2" style="padding-top: 8px; border-top: 1px solid #eee;">                     <span style="font-size: 10px; color: #888; text-transform: uppercase;                           letter-spacing: 1px;">収益推計</span></td></tr>                 <tr><td style="color: #6B7B8D;">ADR</td>                     <td style="text-align: right;">¥8,500/泊</td></tr>                 <tr><td style="color: #6B7B8D;">稼働率</td>                     <td style="text-align: right;">68%</td></tr>                 <tr><td style="color: #6B7B8D;">月間売上</td>                     <td style="text-align: right; font-weight: 700; color: #1B2838;">                     ¥173,400</td></tr>                                  <tr><td colspan="2" style="padding-top: 8px; border-top: 1px solid #eee;">                     <span style="font-size: 10px; color: #888; text-transform: uppercase;                           letter-spacing: 1px;">Airbnb実データ</span></td></tr>                 <tr><td>平均単価</td><td>¥15,327/泊</td></tr>                 <tr><td>中央値</td><td>¥9,940/泊</td></tr>                 <tr><td>掲載数</td><td>47件</td></tr>                              </table>         </div>         </div>`)[0];
+                popup_8a2210a0468f9886d725c1b3c4669cb6.setContent(html_3c8dd65f747687e1a92c7fd8219ac16c);
+            
+        
+
+        circle_7628822ec7ce6d7f7673e34cbad52ef2.bindPopup(popup_8a2210a0468f9886d725c1b3c4669cb6)
+        ;
+
+        
+    
+    
+            var marker_c62ccf0bec199148fe24dff4811a4d7d = L.marker(
+                [43.055, 141.341],
+                {
+}
+            ).addTo(map_d5ec122538e4ec1e9706d406a8a50971);
+        
+    
+            var div_icon_bce46e91d91fbb99b78411eceedd0a30 = L.divIcon({
+  "html": "\u003cdiv style=\"font-family: -apple-system, \u0027Segoe UI\u0027, sans-serif;\n                          text-align: center; pointer-events: none;\"\u003e\n                    \u003cspan style=\"font-size: 16px; font-weight: 700; color: #E84855;\n                          text-shadow: 0 0 4px white, 0 0 4px white, 0 0 4px white;\"\u003e\u4e2d\u592e\u533a\u003c/span\u003e\u003cbr\u003e\n                    \u003cspan style=\"font-size: 10px; color: #555; background: rgba(255,255,255,0.85);\n                          padding: 1px 5px; border-radius: 8px;\"\u003e1,473\u4ef6\u003c/span\u003e\n                \u003c/div\u003e",
+  "iconSize": [100, 40],
+  "iconAnchor": [50, 20],
+  "className": "empty",
+});
+        
+    
+                marker_c62ccf0bec199148fe24dff4811a4d7d.setIcon(div_icon_bce46e91d91fbb99b78411eceedd0a30);
+            
+    
+            var circle_f58a2558741cd11ba91cdaa4f6318501 = L.circle(
+                [43.032, 141.383],
+                {"bubblingMouseEvents": true, "color": "#F26B38", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#F26B38", "fillOpacity": 0.35, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 0.8, "radius": 3966, "stroke": true, "weight": 2.5}
+            ).addTo(map_d5ec122538e4ec1e9706d406a8a50971);
+        
+    
+        var popup_f9a6dda7957997080342f491488a9326 = L.popup({
+  "maxWidth": 320,
+});
+
+        
+            
+                var html_7d3e15cf8d680dcb013f941fa5463b91 = $(`<div id="html_7d3e15cf8d680dcb013f941fa5463b91" style="width: 100.0%; height: 100.0%;">         <div style="font-family: -apple-system, 'Segoe UI', sans-serif; width: 280px; padding: 4px;">             <div style="display: flex; align-items: center; margin-bottom: 10px;">                 <div style="width: 12px; height: 12px; border-radius: 50%;                      background: #F26B38; margin-right: 8px;"></div>                 <h3 style="margin: 0; font-size: 18px; color: #1B2838;">豊平区</h3>             </div>             <table style="font-size: 13px; width: 100%; border-collapse: collapse; line-height: 1.8;">                 <tr><td style="color: #6B7B8D;">民泊施設数</td>                     <td style="font-weight: 700; text-align: right; font-size: 15px;">325                     <span style="font-size: 11px; color: #888; font-weight: 400;">(11.8%)</span></td></tr>                 <tr><td style="color: #6B7B8D;">密度</td>                     <td style="text-align: right;">7.03/km² ・ 1.44/千人</td></tr>                 <tr><td style="color: #6B7B8D;">YoY成長率</td>                     <td style="text-align: right; color: #2B9EB3;">                     +351.4%</td></tr>                 <tr><td colspan="2" style="padding-top: 8px; border-top: 1px solid #eee;">                     <span style="font-size: 10px; color: #888; text-transform: uppercase;                           letter-spacing: 1px;">収益推計</span></td></tr>                 <tr><td style="color: #6B7B8D;">ADR</td>                     <td style="text-align: right;">¥7,200/泊</td></tr>                 <tr><td style="color: #6B7B8D;">稼働率</td>                     <td style="text-align: right;">55%</td></tr>                 <tr><td style="color: #6B7B8D;">月間売上</td>                     <td style="text-align: right; font-weight: 700; color: #1B2838;">                     ¥118,800</td></tr>                                  <tr><td colspan="2" style="padding-top: 8px; border-top: 1px solid #eee;">                     <span style="font-size: 10px; color: #888; text-transform: uppercase;                           letter-spacing: 1px;">Airbnb実データ</span></td></tr>                 <tr><td>平均単価</td><td>¥13,610/泊</td></tr>                 <tr><td>中央値</td><td>¥9,159/泊</td></tr>                 <tr><td>掲載数</td><td>15件</td></tr>                              </table>         </div>         </div>`)[0];
+                popup_f9a6dda7957997080342f491488a9326.setContent(html_7d3e15cf8d680dcb013f941fa5463b91);
+            
+        
+
+        circle_f58a2558741cd11ba91cdaa4f6318501.bindPopup(popup_f9a6dda7957997080342f491488a9326)
+        ;
+
+        
+    
+    
+            var marker_388ad7e8094318b1f394182274534949 = L.marker(
+                [43.032, 141.383],
+                {
+}
+            ).addTo(map_d5ec122538e4ec1e9706d406a8a50971);
+        
+    
+            var div_icon_143a0b7ada647b0b52b7882d387af50e = L.divIcon({
+  "html": "\u003cdiv style=\"font-family: -apple-system, \u0027Segoe UI\u0027, sans-serif;\n                          text-align: center; pointer-events: none;\"\u003e\n                    \u003cspan style=\"font-size: 11px; font-weight: 700; color: #F26B38;\n                          text-shadow: 0 0 4px white, 0 0 4px white, 0 0 4px white;\"\u003e\u8c4a\u5e73\u533a\u003c/span\u003e\u003cbr\u003e\n                    \u003cspan style=\"font-size: 10px; color: #555; background: rgba(255,255,255,0.85);\n                          padding: 1px 5px; border-radius: 8px;\"\u003e325\u4ef6\u003c/span\u003e\n                \u003c/div\u003e",
+  "iconSize": [100, 40],
+  "iconAnchor": [50, 20],
+  "className": "empty",
+});
+        
+    
+                marker_388ad7e8094318b1f394182274534949.setIcon(div_icon_143a0b7ada647b0b52b7882d387af50e);
+            
+    
+            var circle_f291df415e260a784434174ce028c181 = L.circle(
+                [43.042, 141.409],
+                {"bubblingMouseEvents": true, "color": "#F9A620", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#F9A620", "fillOpacity": 0.35, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 0.8, "radius": 3485, "stroke": true, "weight": 2.5}
+            ).addTo(map_d5ec122538e4ec1e9706d406a8a50971);
+        
+    
+        var popup_cd9b2984d88fdec2613b74d850a0e828 = L.popup({
+  "maxWidth": 320,
+});
+
+        
+            
+                var html_27dc4c0797f76da0433fa5b0c7d0d557 = $(`<div id="html_27dc4c0797f76da0433fa5b0c7d0d557" style="width: 100.0%; height: 100.0%;">         <div style="font-family: -apple-system, 'Segoe UI', sans-serif; width: 280px; padding: 4px;">             <div style="display: flex; align-items: center; margin-bottom: 10px;">                 <div style="width: 12px; height: 12px; border-radius: 50%;                      background: #F9A620; margin-right: 8px;"></div>                 <h3 style="margin: 0; font-size: 18px; color: #1B2838;">白石区</h3>             </div>             <table style="font-size: 13px; width: 100%; border-collapse: collapse; line-height: 1.8;">                 <tr><td style="color: #6B7B8D;">民泊施設数</td>                     <td style="font-weight: 700; text-align: right; font-size: 15px;">251                     <span style="font-size: 11px; color: #888; font-weight: 400;">(9.1%)</span></td></tr>                 <tr><td style="color: #6B7B8D;">密度</td>                     <td style="text-align: right;">7.28/km² ・ 1.18/千人</td></tr>                 <tr><td style="color: #6B7B8D;">YoY成長率</td>                     <td style="text-align: right; color: #2B9EB3;">                     +116.2%</td></tr>                 <tr><td colspan="2" style="padding-top: 8px; border-top: 1px solid #eee;">                     <span style="font-size: 10px; color: #888; text-transform: uppercase;                           letter-spacing: 1px;">収益推計</span></td></tr>                 <tr><td style="color: #6B7B8D;">ADR</td>                     <td style="text-align: right;">¥6,600/泊</td></tr>                 <tr><td style="color: #6B7B8D;">稼働率</td>                     <td style="text-align: right;">50%</td></tr>                 <tr><td style="color: #6B7B8D;">月間売上</td>                     <td style="text-align: right; font-weight: 700; color: #1B2838;">                     ¥99,000</td></tr>                                  <tr><td colspan="2" style="padding-top: 8px; border-top: 1px solid #eee;">                     <span style="font-size: 10px; color: #888; text-transform: uppercase;                           letter-spacing: 1px;">Airbnb実データ</span></td></tr>                 <tr><td>平均単価</td><td>¥14,652/泊</td></tr>                 <tr><td>中央値</td><td>¥14,020/泊</td></tr>                 <tr><td>掲載数</td><td>18件</td></tr>                              </table>         </div>         </div>`)[0];
+                popup_cd9b2984d88fdec2613b74d850a0e828.setContent(html_27dc4c0797f76da0433fa5b0c7d0d557);
+            
+        
+
+        circle_f291df415e260a784434174ce028c181.bindPopup(popup_cd9b2984d88fdec2613b74d850a0e828)
+        ;
+
+        
+    
+    
+            var marker_e35705afe2aa35211397eda2eeac4510 = L.marker(
+                [43.042, 141.409],
+                {
+}
+            ).addTo(map_d5ec122538e4ec1e9706d406a8a50971);
+        
+    
+            var div_icon_8298d21fcc37499656e2b7e72e587ea2 = L.divIcon({
+  "html": "\u003cdiv style=\"font-family: -apple-system, \u0027Segoe UI\u0027, sans-serif;\n                          text-align: center; pointer-events: none;\"\u003e\n                    \u003cspan style=\"font-size: 11px; font-weight: 700; color: #F9A620;\n                          text-shadow: 0 0 4px white, 0 0 4px white, 0 0 4px white;\"\u003e\u767d\u77f3\u533a\u003c/span\u003e\u003cbr\u003e\n                    \u003cspan style=\"font-size: 10px; color: #555; background: rgba(255,255,255,0.85);\n                          padding: 1px 5px; border-radius: 8px;\"\u003e251\u4ef6\u003c/span\u003e\n                \u003c/div\u003e",
+  "iconSize": [100, 40],
+  "iconAnchor": [50, 20],
+  "className": "empty",
+});
+        
+    
+                marker_e35705afe2aa35211397eda2eeac4510.setIcon(div_icon_8298d21fcc37499656e2b7e72e587ea2);
+            
+    
+            var circle_032828871325078f61334bae6fe6b573 = L.circle(
+                [43.091, 141.341],
+                {"bubblingMouseEvents": true, "color": "#7BC950", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#7BC950", "fillOpacity": 0.35, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 0.8, "radius": 3203, "stroke": true, "weight": 2.5}
+            ).addTo(map_d5ec122538e4ec1e9706d406a8a50971);
+        
+    
+        var popup_d98f525988a7f1fd2b2f888c6a3427bd = L.popup({
+  "maxWidth": 320,
+});
+
+        
+            
+                var html_bd9c57e8ed0a145c2e6bc43fab0e8f63 = $(`<div id="html_bd9c57e8ed0a145c2e6bc43fab0e8f63" style="width: 100.0%; height: 100.0%;">         <div style="font-family: -apple-system, 'Segoe UI', sans-serif; width: 280px; padding: 4px;">             <div style="display: flex; align-items: center; margin-bottom: 10px;">                 <div style="width: 12px; height: 12px; border-radius: 50%;                      background: #7BC950; margin-right: 8px;"></div>                 <h3 style="margin: 0; font-size: 18px; color: #1B2838;">北区</h3>             </div>             <table style="font-size: 13px; width: 100%; border-collapse: collapse; line-height: 1.8;">                 <tr><td style="color: #6B7B8D;">民泊施設数</td>                     <td style="font-weight: 700; text-align: right; font-size: 15px;">212                     <span style="font-size: 11px; color: #888; font-weight: 400;">(7.7%)</span></td></tr>                 <tr><td style="color: #6B7B8D;">密度</td>                     <td style="text-align: right;">3.33/km² ・ 0.73/千人</td></tr>                 <tr><td style="color: #6B7B8D;">YoY成長率</td>                     <td style="text-align: right; color: #2B9EB3;">                     +416.7%</td></tr>                 <tr><td colspan="2" style="padding-top: 8px; border-top: 1px solid #eee;">                     <span style="font-size: 10px; color: #888; text-transform: uppercase;                           letter-spacing: 1px;">収益推計</span></td></tr>                 <tr><td style="color: #6B7B8D;">ADR</td>                     <td style="text-align: right;">¥7,200/泊</td></tr>                 <tr><td style="color: #6B7B8D;">稼働率</td>                     <td style="text-align: right;">55%</td></tr>                 <tr><td style="color: #6B7B8D;">月間売上</td>                     <td style="text-align: right; font-weight: 700; color: #1B2838;">                     ¥118,800</td></tr>                                  <tr><td colspan="2" style="padding-top: 8px; border-top: 1px solid #eee;">                     <span style="font-size: 10px; color: #888; text-transform: uppercase;                           letter-spacing: 1px;">Airbnb実データ</span></td></tr>                 <tr><td>平均単価</td><td>¥17,787/泊</td></tr>                 <tr><td>中央値</td><td>¥8,558/泊</td></tr>                 <tr><td>掲載数</td><td>18件</td></tr>                              </table>         </div>         </div>`)[0];
+                popup_d98f525988a7f1fd2b2f888c6a3427bd.setContent(html_bd9c57e8ed0a145c2e6bc43fab0e8f63);
+            
+        
+
+        circle_032828871325078f61334bae6fe6b573.bindPopup(popup_d98f525988a7f1fd2b2f888c6a3427bd)
+        ;
+
+        
+    
+    
+            var marker_db65f2fbdc84a6e640a5a6f44898d57a = L.marker(
+                [43.091, 141.341],
+                {
+}
+            ).addTo(map_d5ec122538e4ec1e9706d406a8a50971);
+        
+    
+            var div_icon_e56f11059603b753112f6ab8426a339c = L.divIcon({
+  "html": "\u003cdiv style=\"font-family: -apple-system, \u0027Segoe UI\u0027, sans-serif;\n                          text-align: center; pointer-events: none;\"\u003e\n                    \u003cspan style=\"font-size: 11px; font-weight: 700; color: #7BC950;\n                          text-shadow: 0 0 4px white, 0 0 4px white, 0 0 4px white;\"\u003e\u5317\u533a\u003c/span\u003e\u003cbr\u003e\n                    \u003cspan style=\"font-size: 10px; color: #555; background: rgba(255,255,255,0.85);\n                          padding: 1px 5px; border-radius: 8px;\"\u003e212\u4ef6\u003c/span\u003e\n                \u003c/div\u003e",
+  "iconSize": [100, 40],
+  "iconAnchor": [50, 20],
+  "className": "empty",
+});
+        
+    
+                marker_db65f2fbdc84a6e640a5a6f44898d57a.setIcon(div_icon_e56f11059603b753112f6ab8426a339c);
+            
+    
+            var circle_921e6ccd77351a796602f570465f6ee5 = L.circle(
+                [43.076, 141.376],
+                {"bubblingMouseEvents": true, "color": "#2B9EB3", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#2B9EB3", "fillOpacity": 0.35, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 0.8, "radius": 3195, "stroke": true, "weight": 2.5}
+            ).addTo(map_d5ec122538e4ec1e9706d406a8a50971);
+        
+    
+        var popup_3d870da932cd6e200d161a64ea7c3493 = L.popup({
+  "maxWidth": 320,
+});
+
+        
+            
+                var html_94783bb24aa6530d2ca0f63e5e27f3fe = $(`<div id="html_94783bb24aa6530d2ca0f63e5e27f3fe" style="width: 100.0%; height: 100.0%;">         <div style="font-family: -apple-system, 'Segoe UI', sans-serif; width: 280px; padding: 4px;">             <div style="display: flex; align-items: center; margin-bottom: 10px;">                 <div style="width: 12px; height: 12px; border-radius: 50%;                      background: #2B9EB3; margin-right: 8px;"></div>                 <h3 style="margin: 0; font-size: 18px; color: #1B2838;">東区</h3>             </div>             <table style="font-size: 13px; width: 100%; border-collapse: collapse; line-height: 1.8;">                 <tr><td style="color: #6B7B8D;">民泊施設数</td>                     <td style="font-weight: 700; text-align: right; font-size: 15px;">211                     <span style="font-size: 11px; color: #888; font-weight: 400;">(7.7%)</span></td></tr>                 <tr><td style="color: #6B7B8D;">密度</td>                     <td style="text-align: right;">3.7/km² ・ 0.8/千人</td></tr>                 <tr><td style="color: #6B7B8D;">YoY成長率</td>                     <td style="text-align: right; color: #2B9EB3;">                     +79.5%</td></tr>                 <tr><td colspan="2" style="padding-top: 8px; border-top: 1px solid #eee;">                     <span style="font-size: 10px; color: #888; text-transform: uppercase;                           letter-spacing: 1px;">収益推計</span></td></tr>                 <tr><td style="color: #6B7B8D;">ADR</td>                     <td style="text-align: right;">¥6,600/泊</td></tr>                 <tr><td style="color: #6B7B8D;">稼働率</td>                     <td style="text-align: right;">50%</td></tr>                 <tr><td style="color: #6B7B8D;">月間売上</td>                     <td style="text-align: right; font-weight: 700; color: #1B2838;">                     ¥99,000</td></tr>                                  <tr><td colspan="2" style="padding-top: 8px; border-top: 1px solid #eee;">                     <span style="font-size: 10px; color: #888; text-transform: uppercase;                           letter-spacing: 1px;">Airbnb実データ</span></td></tr>                 <tr><td>平均単価</td><td>¥16,245/泊</td></tr>                 <tr><td>中央値</td><td>¥14,042/泊</td></tr>                 <tr><td>掲載数</td><td>11件</td></tr>                              </table>         </div>         </div>`)[0];
+                popup_3d870da932cd6e200d161a64ea7c3493.setContent(html_94783bb24aa6530d2ca0f63e5e27f3fe);
+            
+        
+
+        circle_921e6ccd77351a796602f570465f6ee5.bindPopup(popup_3d870da932cd6e200d161a64ea7c3493)
+        ;
+
+        
+    
+    
+            var marker_d420ed384e28af608cf8441e83375cd5 = L.marker(
+                [43.076, 141.376],
+                {
+}
+            ).addTo(map_d5ec122538e4ec1e9706d406a8a50971);
+        
+    
+            var div_icon_e04ed5ecb9f92b2e72e0ef0eb7bfd6fa = L.divIcon({
+  "html": "\u003cdiv style=\"font-family: -apple-system, \u0027Segoe UI\u0027, sans-serif;\n                          text-align: center; pointer-events: none;\"\u003e\n                    \u003cspan style=\"font-size: 11px; font-weight: 700; color: #2B9EB3;\n                          text-shadow: 0 0 4px white, 0 0 4px white, 0 0 4px white;\"\u003e\u6771\u533a\u003c/span\u003e\u003cbr\u003e\n                    \u003cspan style=\"font-size: 10px; color: #555; background: rgba(255,255,255,0.85);\n                          padding: 1px 5px; border-radius: 8px;\"\u003e211\u4ef6\u003c/span\u003e\n                \u003c/div\u003e",
+  "iconSize": [100, 40],
+  "iconAnchor": [50, 20],
+  "className": "empty",
+});
+        
+    
+                marker_d420ed384e28af608cf8441e83375cd5.setIcon(div_icon_e04ed5ecb9f92b2e72e0ef0eb7bfd6fa);
+            
+    
+            var circle_bb609828c9b0bbade3fbc7fc4e6c7560 = L.circle(
+                [43.074, 141.299],
+                {"bubblingMouseEvents": true, "color": "#4A7DCC", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#4A7DCC", "fillOpacity": 0.35, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 0.8, "radius": 2612, "stroke": true, "weight": 2.5}
+            ).addTo(map_d5ec122538e4ec1e9706d406a8a50971);
+        
+    
+        var popup_44062b77dc3f2ea370dc2c1db292f7e5 = L.popup({
+  "maxWidth": 320,
+});
+
+        
+            
+                var html_4bfdf05ac4a1dcd92f9d5cca497039f4 = $(`<div id="html_4bfdf05ac4a1dcd92f9d5cca497039f4" style="width: 100.0%; height: 100.0%;">         <div style="font-family: -apple-system, 'Segoe UI', sans-serif; width: 280px; padding: 4px;">             <div style="display: flex; align-items: center; margin-bottom: 10px;">                 <div style="width: 12px; height: 12px; border-radius: 50%;                      background: #4A7DCC; margin-right: 8px;"></div>                 <h3 style="margin: 0; font-size: 18px; color: #1B2838;">西区</h3>             </div>             <table style="font-size: 13px; width: 100%; border-collapse: collapse; line-height: 1.8;">                 <tr><td style="color: #6B7B8D;">民泊施設数</td>                     <td style="font-weight: 700; text-align: right; font-size: 15px;">141                     <span style="font-size: 11px; color: #888; font-weight: 400;">(5.1%)</span></td></tr>                 <tr><td style="color: #6B7B8D;">密度</td>                     <td style="text-align: right;">1.88/km² ・ 0.65/千人</td></tr>                 <tr><td style="color: #6B7B8D;">YoY成長率</td>                     <td style="text-align: right; color: #2B9EB3;">                     +1000.0%</td></tr>                 <tr><td colspan="2" style="padding-top: 8px; border-top: 1px solid #eee;">                     <span style="font-size: 10px; color: #888; text-transform: uppercase;                           letter-spacing: 1px;">収益推計</span></td></tr>                 <tr><td style="color: #6B7B8D;">ADR</td>                     <td style="text-align: right;">¥6,300/泊</td></tr>                 <tr><td style="color: #6B7B8D;">稼働率</td>                     <td style="text-align: right;">45%</td></tr>                 <tr><td style="color: #6B7B8D;">月間売上</td>                     <td style="text-align: right; font-weight: 700; color: #1B2838;">                     ¥85,050</td></tr>                                  <tr><td colspan="2" style="padding-top: 8px; border-top: 1px solid #eee;">                     <span style="font-size: 10px; color: #888; text-transform: uppercase;                           letter-spacing: 1px;">Airbnb実データ</span></td></tr>                 <tr><td>平均単価</td><td>¥15,066/泊</td></tr>                 <tr><td>中央値</td><td>¥12,242/泊</td></tr>                 <tr><td>掲載数</td><td>17件</td></tr>                              </table>         </div>         </div>`)[0];
+                popup_44062b77dc3f2ea370dc2c1db292f7e5.setContent(html_4bfdf05ac4a1dcd92f9d5cca497039f4);
+            
+        
+
+        circle_bb609828c9b0bbade3fbc7fc4e6c7560.bindPopup(popup_44062b77dc3f2ea370dc2c1db292f7e5)
+        ;
+
+        
+    
+    
+            var marker_88b168350d8dc05f7121fec9e4aac184 = L.marker(
+                [43.074, 141.299],
+                {
+}
+            ).addTo(map_d5ec122538e4ec1e9706d406a8a50971);
+        
+    
+            var div_icon_4e236dcb2023a0d74dbc372130efa1aa = L.divIcon({
+  "html": "\u003cdiv style=\"font-family: -apple-system, \u0027Segoe UI\u0027, sans-serif;\n                          text-align: center; pointer-events: none;\"\u003e\n                    \u003cspan style=\"font-size: 11px; font-weight: 700; color: #4A7DCC;\n                          text-shadow: 0 0 4px white, 0 0 4px white, 0 0 4px white;\"\u003e\u897f\u533a\u003c/span\u003e\u003cbr\u003e\n                    \u003cspan style=\"font-size: 10px; color: #555; background: rgba(255,255,255,0.85);\n                          padding: 1px 5px; border-radius: 8px;\"\u003e141\u4ef6\u003c/span\u003e\n                \u003c/div\u003e",
+  "iconSize": [100, 40],
+  "iconAnchor": [50, 20],
+  "className": "empty",
+});
+        
+    
+                marker_88b168350d8dc05f7121fec9e4aac184.setIcon(div_icon_4e236dcb2023a0d74dbc372130efa1aa);
+            
+    
+            var circle_5af5d87cd4b96cc036d0587ded50942b = L.circle(
+                [42.99, 141.353],
+                {"bubblingMouseEvents": true, "color": "#6C5CE7", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#6C5CE7", "fillOpacity": 0.35, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 0.8, "radius": 2177, "stroke": true, "weight": 2.5}
+            ).addTo(map_d5ec122538e4ec1e9706d406a8a50971);
+        
+    
+        var popup_3ddf63052e8474e16336eb45bad98752 = L.popup({
+  "maxWidth": 320,
+});
+
+        
+            
+                var html_15fb39180c55cad09571860d1ce4abcb = $(`<div id="html_15fb39180c55cad09571860d1ce4abcb" style="width: 100.0%; height: 100.0%;">         <div style="font-family: -apple-system, 'Segoe UI', sans-serif; width: 280px; padding: 4px;">             <div style="display: flex; align-items: center; margin-bottom: 10px;">                 <div style="width: 12px; height: 12px; border-radius: 50%;                      background: #6C5CE7; margin-right: 8px;"></div>                 <h3 style="margin: 0; font-size: 18px; color: #1B2838;">南区</h3>             </div>             <table style="font-size: 13px; width: 100%; border-collapse: collapse; line-height: 1.8;">                 <tr><td style="color: #6B7B8D;">民泊施設数</td>                     <td style="font-weight: 700; text-align: right; font-size: 15px;">98                     <span style="font-size: 11px; color: #888; font-weight: 400;">(3.6%)</span></td></tr>                 <tr><td style="color: #6B7B8D;">密度</td>                     <td style="text-align: right;">0.15/km² ・ 0.75/千人</td></tr>                 <tr><td style="color: #6B7B8D;">YoY成長率</td>                     <td style="text-align: right; color: #E84855;">                     -5.0%</td></tr>                 <tr><td colspan="2" style="padding-top: 8px; border-top: 1px solid #eee;">                     <span style="font-size: 10px; color: #888; text-transform: uppercase;                           letter-spacing: 1px;">収益推計</span></td></tr>                 <tr><td style="color: #6B7B8D;">ADR</td>                     <td style="text-align: right;">¥5,800/泊</td></tr>                 <tr><td style="color: #6B7B8D;">稼働率</td>                     <td style="text-align: right;">40%</td></tr>                 <tr><td style="color: #6B7B8D;">月間売上</td>                     <td style="text-align: right; font-weight: 700; color: #1B2838;">                     ¥69,600</td></tr>                                  <tr><td colspan="2" style="padding-top: 8px; border-top: 1px solid #eee;">                     <span style="font-size: 10px; color: #888; text-transform: uppercase;                           letter-spacing: 1px;">Airbnb実データ</span></td></tr>                 <tr><td>平均単価</td><td>¥14,076/泊</td></tr>                 <tr><td>中央値</td><td>¥12,584/泊</td></tr>                 <tr><td>掲載数</td><td>12件</td></tr>                              </table>         </div>         </div>`)[0];
+                popup_3ddf63052e8474e16336eb45bad98752.setContent(html_15fb39180c55cad09571860d1ce4abcb);
+            
+        
+
+        circle_5af5d87cd4b96cc036d0587ded50942b.bindPopup(popup_3ddf63052e8474e16336eb45bad98752)
+        ;
+
+        
+    
+    
+            var marker_99607aa0372e841807bec2f38b4989ce = L.marker(
+                [42.99, 141.353],
+                {
+}
+            ).addTo(map_d5ec122538e4ec1e9706d406a8a50971);
+        
+    
+            var div_icon_611cdf1e3aef3ff3877ab4ba17b92aff = L.divIcon({
+  "html": "\u003cdiv style=\"font-family: -apple-system, \u0027Segoe UI\u0027, sans-serif;\n                          text-align: center; pointer-events: none;\"\u003e\n                    \u003cspan style=\"font-size: 11px; font-weight: 700; color: #6C5CE7;\n                          text-shadow: 0 0 4px white, 0 0 4px white, 0 0 4px white;\"\u003e\u5357\u533a\u003c/span\u003e\u003cbr\u003e\n                    \u003cspan style=\"font-size: 10px; color: #555; background: rgba(255,255,255,0.85);\n                          padding: 1px 5px; border-radius: 8px;\"\u003e98\u4ef6\u003c/span\u003e\n                \u003c/div\u003e",
+  "iconSize": [100, 40],
+  "iconAnchor": [50, 20],
+  "className": "empty",
+});
+        
+    
+                marker_99607aa0372e841807bec2f38b4989ce.setIcon(div_icon_611cdf1e3aef3ff3877ab4ba17b92aff);
+            
+    
+            var circle_9543db6fc16174c12210178b06cbf50b = L.circle(
+                [43.117, 141.247],
+                {"bubblingMouseEvents": true, "color": "#A78BFA", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#A78BFA", "fillOpacity": 0.35, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 0.8, "radius": 1224, "stroke": true, "weight": 2.5}
+            ).addTo(map_d5ec122538e4ec1e9706d406a8a50971);
+        
+    
+        var popup_8bd8db931ba9bc7956e94d9dbcf7eb33 = L.popup({
+  "maxWidth": 320,
+});
+
+        
+            
+                var html_32c2c3f77286384923b3d26f1d214772 = $(`<div id="html_32c2c3f77286384923b3d26f1d214772" style="width: 100.0%; height: 100.0%;">         <div style="font-family: -apple-system, 'Segoe UI', sans-serif; width: 280px; padding: 4px;">             <div style="display: flex; align-items: center; margin-bottom: 10px;">                 <div style="width: 12px; height: 12px; border-radius: 50%;                      background: #A78BFA; margin-right: 8px;"></div>                 <h3 style="margin: 0; font-size: 18px; color: #1B2838;">手稲区</h3>             </div>             <table style="font-size: 13px; width: 100%; border-collapse: collapse; line-height: 1.8;">                 <tr><td style="color: #6B7B8D;">民泊施設数</td>                     <td style="font-weight: 700; text-align: right; font-size: 15px;">31                     <span style="font-size: 11px; color: #888; font-weight: 400;">(1.1%)</span></td></tr>                 <tr><td style="color: #6B7B8D;">密度</td>                     <td style="text-align: right;">0.55/km² ・ 0.22/千人</td></tr>                 <tr><td style="color: #6B7B8D;">YoY成長率</td>                     <td style="text-align: right; color: #2B9EB3;">                     +166.7%</td></tr>                 <tr><td colspan="2" style="padding-top: 8px; border-top: 1px solid #eee;">                     <span style="font-size: 10px; color: #888; text-transform: uppercase;                           letter-spacing: 1px;">収益推計</span></td></tr>                 <tr><td style="color: #6B7B8D;">ADR</td>                     <td style="text-align: right;">¥5,800/泊</td></tr>                 <tr><td style="color: #6B7B8D;">稼働率</td>                     <td style="text-align: right;">35%</td></tr>                 <tr><td style="color: #6B7B8D;">月間売上</td>                     <td style="text-align: right; font-weight: 700; color: #1B2838;">                     ¥60,899</td></tr>                                  <tr><td colspan="2" style="padding-top: 8px; border-top: 1px solid #eee;">                     <span style="font-size: 10px; color: #888; text-transform: uppercase;                           letter-spacing: 1px;">Airbnb実データ</span></td></tr>                 <tr><td>平均単価</td><td>¥31,278/泊</td></tr>                 <tr><td>中央値</td><td>¥29,246/泊</td></tr>                 <tr><td>掲載数</td><td>16件</td></tr>                              </table>         </div>         </div>`)[0];
+                popup_8bd8db931ba9bc7956e94d9dbcf7eb33.setContent(html_32c2c3f77286384923b3d26f1d214772);
+            
+        
+
+        circle_9543db6fc16174c12210178b06cbf50b.bindPopup(popup_8bd8db931ba9bc7956e94d9dbcf7eb33)
+        ;
+
+        
+    
+    
+            var marker_34b874e53a852ee022a6e595df3af084 = L.marker(
+                [43.117, 141.247],
+                {
+}
+            ).addTo(map_d5ec122538e4ec1e9706d406a8a50971);
+        
+    
+            var div_icon_4b348cd4e878c545b5e02cf441e49dcd = L.divIcon({
+  "html": "\u003cdiv style=\"font-family: -apple-system, \u0027Segoe UI\u0027, sans-serif;\n                          text-align: center; pointer-events: none;\"\u003e\n                    \u003cspan style=\"font-size: 11px; font-weight: 700; color: #A78BFA;\n                          text-shadow: 0 0 4px white, 0 0 4px white, 0 0 4px white;\"\u003e\u624b\u7a32\u533a\u003c/span\u003e\u003cbr\u003e\n                    \u003cspan style=\"font-size: 10px; color: #555; background: rgba(255,255,255,0.85);\n                          padding: 1px 5px; border-radius: 8px;\"\u003e31\u4ef6\u003c/span\u003e\n                \u003c/div\u003e",
+  "iconSize": [100, 40],
+  "iconAnchor": [50, 20],
+  "className": "empty",
+});
+        
+    
+                marker_34b874e53a852ee022a6e595df3af084.setIcon(div_icon_4b348cd4e878c545b5e02cf441e49dcd);
+            
+    
+            var circle_12d6236ef9107fe2005b7ad2764232f7 = L.circle(
+                [43.038, 141.476],
+                {"bubblingMouseEvents": true, "color": "#C4B5FD", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#C4B5FD", "fillOpacity": 0.35, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 0.8, "radius": 622, "stroke": true, "weight": 2.5}
+            ).addTo(map_d5ec122538e4ec1e9706d406a8a50971);
+        
+    
+        var popup_96e842ecd5d6c22d8a3cae8e836f2914 = L.popup({
+  "maxWidth": 320,
+});
+
+        
+            
+                var html_84184c01d4cf1e340268e6fff436645b = $(`<div id="html_84184c01d4cf1e340268e6fff436645b" style="width: 100.0%; height: 100.0%;">         <div style="font-family: -apple-system, 'Segoe UI', sans-serif; width: 280px; padding: 4px;">             <div style="display: flex; align-items: center; margin-bottom: 10px;">                 <div style="width: 12px; height: 12px; border-radius: 50%;                      background: #C4B5FD; margin-right: 8px;"></div>                 <h3 style="margin: 0; font-size: 18px; color: #1B2838;">厚別区</h3>             </div>             <table style="font-size: 13px; width: 100%; border-collapse: collapse; line-height: 1.8;">                 <tr><td style="color: #6B7B8D;">民泊施設数</td>                     <td style="font-weight: 700; text-align: right; font-size: 15px;">8                     <span style="font-size: 11px; color: #888; font-weight: 400;">(0.3%)</span></td></tr>                 <tr><td style="color: #6B7B8D;">密度</td>                     <td style="text-align: right;">0.33/km² ・ 0.06/千人</td></tr>                 <tr><td style="color: #6B7B8D;">YoY成長率</td>                     <td style="text-align: right; color: #E84855;">                     0.0%</td></tr>                 <tr><td colspan="2" style="padding-top: 8px; border-top: 1px solid #eee;">                     <span style="font-size: 10px; color: #888; text-transform: uppercase;                           letter-spacing: 1px;">収益推計</span></td></tr>                 <tr><td style="color: #6B7B8D;">ADR</td>                     <td style="text-align: right;">¥5,800/泊</td></tr>                 <tr><td style="color: #6B7B8D;">稼働率</td>                     <td style="text-align: right;">38%</td></tr>                 <tr><td style="color: #6B7B8D;">月間売上</td>                     <td style="text-align: right; font-weight: 700; color: #1B2838;">                     ¥66,120</td></tr>                                  <tr><td colspan="2" style="padding-top: 8px; border-top: 1px solid #eee;">                     <span style="font-size: 10px; color: #888; text-transform: uppercase;                           letter-spacing: 1px;">Airbnb実データ</span></td></tr>                 <tr><td>平均単価</td><td>¥11,870/泊</td></tr>                 <tr><td>中央値</td><td>¥11,614/泊</td></tr>                 <tr><td>掲載数</td><td>4件</td></tr>                              </table>         </div>         </div>`)[0];
+                popup_96e842ecd5d6c22d8a3cae8e836f2914.setContent(html_84184c01d4cf1e340268e6fff436645b);
+            
+        
+
+        circle_12d6236ef9107fe2005b7ad2764232f7.bindPopup(popup_96e842ecd5d6c22d8a3cae8e836f2914)
+        ;
+
+        
+    
+    
+            var marker_a1117d2b5eee0eb1f8e77fd85c008f87 = L.marker(
+                [43.038, 141.476],
+                {
+}
+            ).addTo(map_d5ec122538e4ec1e9706d406a8a50971);
+        
+    
+            var div_icon_5b73b604bb242f63d67b4073eeef4e6f = L.divIcon({
+  "html": "\u003cdiv style=\"font-family: -apple-system, \u0027Segoe UI\u0027, sans-serif;\n                          text-align: center; pointer-events: none;\"\u003e\n                    \u003cspan style=\"font-size: 11px; font-weight: 700; color: #C4B5FD;\n                          text-shadow: 0 0 4px white, 0 0 4px white, 0 0 4px white;\"\u003e\u539a\u5225\u533a\u003c/span\u003e\u003cbr\u003e\n                    \u003cspan style=\"font-size: 10px; color: #555; background: rgba(255,255,255,0.85);\n                          padding: 1px 5px; border-radius: 8px;\"\u003e8\u4ef6\u003c/span\u003e\n                \u003c/div\u003e",
+  "iconSize": [100, 40],
+  "iconAnchor": [50, 20],
+  "className": "empty",
+});
+        
+    
+                marker_a1117d2b5eee0eb1f8e77fd85c008f87.setIcon(div_icon_5b73b604bb242f63d67b4073eeef4e6f);
+            
+    
+            var circle_254c46fbafe45b260690c569bcf293e2 = L.circle(
+                [43.003, 141.449],
+                {"bubblingMouseEvents": true, "color": "#D4D4D8", "dashArray": null, "dashOffset": null, "fill": true, "fillColor": "#D4D4D8", "fillOpacity": 0.35, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 0.8, "radius": 600, "stroke": true, "weight": 2.5}
+            ).addTo(map_d5ec122538e4ec1e9706d406a8a50971);
+        
+    
+        var popup_942dc5e7b1cf36ce0098b0a50e82ba60 = L.popup({
+  "maxWidth": 320,
+});
+
+        
+            
+                var html_f6c1b595ad922ef6e4d923b61ab9b8ad = $(`<div id="html_f6c1b595ad922ef6e4d923b61ab9b8ad" style="width: 100.0%; height: 100.0%;">         <div style="font-family: -apple-system, 'Segoe UI', sans-serif; width: 280px; padding: 4px;">             <div style="display: flex; align-items: center; margin-bottom: 10px;">                 <div style="width: 12px; height: 12px; border-radius: 50%;                      background: #D4D4D8; margin-right: 8px;"></div>                 <h3 style="margin: 0; font-size: 18px; color: #1B2838;">清田区</h3>             </div>             <table style="font-size: 13px; width: 100%; border-collapse: collapse; line-height: 1.8;">                 <tr><td style="color: #6B7B8D;">民泊施設数</td>                     <td style="font-weight: 700; text-align: right; font-size: 15px;">6                     <span style="font-size: 11px; color: #888; font-weight: 400;">(0.2%)</span></td></tr>                 <tr><td style="color: #6B7B8D;">密度</td>                     <td style="text-align: right;">0.1/km² ・ 0.05/千人</td></tr>                 <tr><td style="color: #6B7B8D;">YoY成長率</td>                     <td style="text-align: right; color: #2B9EB3;">                     +100.0%</td></tr>                 <tr><td colspan="2" style="padding-top: 8px; border-top: 1px solid #eee;">                     <span style="font-size: 10px; color: #888; text-transform: uppercase;                           letter-spacing: 1px;">収益推計</span></td></tr>                 <tr><td style="color: #6B7B8D;">ADR</td>                     <td style="text-align: right;">¥5,300/泊</td></tr>                 <tr><td style="color: #6B7B8D;">稼働率</td>                     <td style="text-align: right;">33%</td></tr>                 <tr><td style="color: #6B7B8D;">月間売上</td>                     <td style="text-align: right; font-weight: 700; color: #1B2838;">                     ¥52,470</td></tr>                                  <tr><td colspan="2" style="padding-top: 8px; border-top: 1px solid #eee;">                     <span style="font-size: 10px; color: #888; text-transform: uppercase;                           letter-spacing: 1px;">Airbnb実データ</span></td></tr>                 <tr><td>平均単価</td><td>¥25,415/泊</td></tr>                 <tr><td>中央値</td><td>¥20,672/泊</td></tr>                 <tr><td>掲載数</td><td>5件</td></tr>                              </table>         </div>         </div>`)[0];
+                popup_942dc5e7b1cf36ce0098b0a50e82ba60.setContent(html_f6c1b595ad922ef6e4d923b61ab9b8ad);
+            
+        
+
+        circle_254c46fbafe45b260690c569bcf293e2.bindPopup(popup_942dc5e7b1cf36ce0098b0a50e82ba60)
+        ;
+
+        
+    
+    
+            var marker_5aa26e0580d7a4a7b0b297dd086cf034 = L.marker(
+                [43.003, 141.449],
+                {
+}
+            ).addTo(map_d5ec122538e4ec1e9706d406a8a50971);
+        
+    
+            var div_icon_3a7a52e46f20f134668f5e3c26688dc9 = L.divIcon({
+  "html": "\u003cdiv style=\"font-family: -apple-system, \u0027Segoe UI\u0027, sans-serif;\n                          text-align: center; pointer-events: none;\"\u003e\n                    \u003cspan style=\"font-size: 11px; font-weight: 700; color: #D4D4D8;\n                          text-shadow: 0 0 4px white, 0 0 4px white, 0 0 4px white;\"\u003e\u6e05\u7530\u533a\u003c/span\u003e\u003cbr\u003e\n                    \u003cspan style=\"font-size: 10px; color: #555; background: rgba(255,255,255,0.85);\n                          padding: 1px 5px; border-radius: 8px;\"\u003e6\u4ef6\u003c/span\u003e\n                \u003c/div\u003e",
+  "iconSize": [100, 40],
+  "iconAnchor": [50, 20],
+  "className": "empty",
+});
+        
+    
+                marker_5aa26e0580d7a4a7b0b297dd086cf034.setIcon(div_icon_3a7a52e46f20f134668f5e3c26688dc9);
+            
+</script>
+</html>

@@ -5,8 +5,9 @@ GitHub Actions から呼び出され、以下を順次実行する:
 2. 賃貸サイトスクレイピング
 3. SUUMO掲載の検証（建物名・住所の一致確認）
 4. Excel出力
-5. LINE通知（新着時）
-6. マップHTML生成
+5. 物件評価（収益シミュレーション・スコアリング）
+6. LINE通知（新着時）
+7. マップHTML生成
 """
 
 import argparse
@@ -17,6 +18,9 @@ from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+# 物件評価モジュールのディレクトリ
+_EVAL_DIR = Path(__file__).resolve().parent.parent / "07_property_evaluation"
 
 from config import ENABLED_SITES, BUILDINGS_CSV, LOG_DIR
 from extractors.building_name import (
@@ -32,7 +36,7 @@ from notifications.line_notify import send_new_listing_notification
 from verify_listings import VerificationScraper, verify_all, print_summary
 from generate_map import (
     load_listings, geocode_all, build_map_data, render_html,
-    find_latest_excel, MAP_OUTPUT_PATH,
+    find_latest_excel, load_evaluation_scores, MAP_OUTPUT_PATH,
 )
 
 logger = logging.getLogger(__name__)
@@ -51,8 +55,11 @@ def generate_map():
     logger.info("[MAP] ジオコーディング（国土地理院API）")
     coords = geocode_all(df)
 
+    logger.info("[MAP] 評価スコア読み込み")
+    scores = load_evaluation_scores()
+
     logger.info("[MAP] マップデータ構築")
-    properties, unmapped = build_map_data(df, coords)
+    properties, unmapped = build_map_data(df, coords, scores)
     logger.info(f"[MAP] マップ表示: {len(properties)}件, 未マッピング: {len(unmapped)}件")
 
     logger.info("[MAP] HTML生成")
@@ -142,6 +149,18 @@ def main():
                     )
             print_summary(verify_results)
             logger.info("検証結果をDBに保存しました")
+
+            # mismatch/suspicious の掲載を非アクティブ化
+            with get_db() as conn:
+                result = conn.execute(
+                    """UPDATE listings SET is_active = 0
+                       WHERE id IN (
+                           SELECT v.listing_id FROM listing_verifications v
+                           WHERE v.status IN ('mismatch', 'suspicious')
+                       ) AND is_active = 1"""
+                )
+                if result.rowcount > 0:
+                    logger.info(f"検証NG掲載を非アクティブ化: {result.rowcount}件")
         else:
             logger.info("未検証のSUUMO掲載はありません")
     except Exception as e:
@@ -154,7 +173,28 @@ def main():
     except Exception as e:
         logger.error(f"Excel出力エラー: {e}")
 
-    # 7. LINE通知
+    # 7. 物件評価実行（サブプロセスで実行: config衝突回避）
+    try:
+        import subprocess
+        eval_script = _EVAL_DIR / "evaluate.py"
+        if eval_script.exists():
+            logger.info("=== 物件評価開始 ===")
+            result = subprocess.run(
+                [sys.executable, str(eval_script)],
+                capture_output=True, text=True, timeout=120,
+                cwd=str(_EVAL_DIR),
+                env={**__import__("os").environ, "PYTHONIOENCODING": "utf-8"},
+            )
+            if result.returncode == 0:
+                logger.info("物件評価完了")
+            else:
+                logger.warning(f"物件評価で警告: {result.stderr[:500] if result.stderr else 'N/A'}")
+        else:
+            logger.warning("評価スクリプトが見つかりません")
+    except Exception as e:
+        logger.error(f"物件評価エラー（パイプライン続行）: {e}")
+
+    # 8. LINE通知
     if total_stats.get("new", 0) > 0:
         try:
             with get_db() as conn:
@@ -165,7 +205,7 @@ def main():
         except Exception as e:
             logger.error(f"LINE通知エラー: {e}")
 
-    # 8. マップHTML生成
+    # 9. マップHTML生成
     try:
         generate_map()
     except Exception as e:

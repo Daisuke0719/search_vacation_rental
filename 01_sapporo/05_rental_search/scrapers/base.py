@@ -31,6 +31,7 @@ class ListingResult:
     building_age: Optional[str] = None      # 築年数
     nearest_station: Optional[str] = None   # 最寄駅
     walk_minutes: Optional[int] = None      # 徒歩分
+    bath_toilet_separate: Optional[int] = None  # バストイレ別 (1=別, 0=一体, None=不明)
 
 
 class BaseScraper(ABC):
