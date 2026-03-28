@@ -155,27 +155,43 @@ def format_yen(value) -> str:
 
 
 def load_evaluation_scores() -> dict:
-    """評価エンジンの結果を読み込み、listing_url → スコアdictのマッピングを返す。"""
+    """評価エンジンの結果を読み込み、listing_url → スコアdictのマッピングを返す。
+
+    evaluate.pyをサブプロセスで実行し、生成された最新Excelからスコアを読む。
+    既存の古いExcelではなく、実行直後のタイムスタンプで特定する。
+    """
     try:
         import subprocess, sys as _sys
-        eval_script = str(Path(__file__).resolve().parent.parent / "07_property_evaluation" / "evaluate.py")
-        eval_output = Path(__file__).resolve().parent.parent / "07_property_evaluation" / "output"
+        eval_dir = Path(__file__).resolve().parent.parent / "07_property_evaluation"
+        eval_script = str(eval_dir / "evaluate.py")
+        eval_output = eval_dir / "output"
 
-        # evaluate.pyを別プロセスで実行（config衝突回避）
-        result = subprocess.run(
-            [_sys.executable, eval_script],
-            capture_output=True, text=True, timeout=120,
-            cwd=str(Path(eval_script).parent),
-        )
-
-        # 最新のExcelから結果を読む
-        eval_excels = sorted(eval_output.glob("evaluation_*.xlsx"))
-        if not eval_excels:
-            print(f"  評価Excelが見つかりません")
+        if not Path(eval_script).exists():
+            print("  評価スクリプトが見つかりません")
             return {}
 
-        # Excel列名: 総合ランキングシート
-        results_df = pd.read_excel(eval_excels[-1], sheet_name="総合ランキング")
+        # 実行前の既存Excelを記録
+        before = set(eval_output.glob("evaluation_*.xlsx")) if eval_output.exists() else set()
+
+        # evaluate.pyをサブプロセスで実行（config衝突回避）
+        subprocess.run(
+            [_sys.executable, eval_script],
+            capture_output=True, timeout=120,
+            cwd=str(eval_dir),
+        )
+
+        # 実行後に新しく生成されたExcelを特定
+        after = set(eval_output.glob("evaluation_*.xlsx")) if eval_output.exists() else set()
+        new_excels = sorted(after - before)
+
+        # 新規Excelがなければ最新の既存Excelを使用
+        target_excel = new_excels[-1] if new_excels else (sorted(after)[-1] if after else None)
+        if not target_excel:
+            print("  評価Excelが見つかりません")
+            return {}
+
+        print(f"  評価Excel: {target_excel.name}")
+        results_df = pd.read_excel(target_excel, sheet_name="総合ランキング")
         scores = {}
         for _, row in results_df.iterrows():
             url = row.get("掲載URL", "")
