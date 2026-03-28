@@ -262,6 +262,51 @@ def update_page(client: httpx.Client, page_id: str, row, score_data: dict | None
         resp.raise_for_status()
 
 
+# 評価スコア用のNotionプロパティ定義
+SCORE_PROPERTIES = {
+    "総合スコア": "number",
+    "収益性スコア": "number",
+    "立地スコア": "number",
+    "需要スコア": "number",
+    "品質スコア": "number",
+    "リスクスコア": "number",
+    "年間利益（円）": "number",
+    "年間ROI（%）": "number",
+    "推定ADR（円）": "number",
+}
+
+
+def ensure_score_properties(client: httpx.Client) -> None:
+    """Notionデータベースに評価スコア用プロパティが無ければ追加する。"""
+    _rate_limit()
+    resp = client.get(f"{NOTION_API_URL}/databases/{NOTION_DATABASE_ID}")
+    if resp.status_code != 200:
+        logger.warning(f"DB schema取得失敗: {resp.status_code}")
+        return
+
+    existing_props = set(resp.json().get("properties", {}).keys())
+    missing = {k: v for k, v in SCORE_PROPERTIES.items() if k not in existing_props}
+
+    if not missing:
+        logger.info("評価スコアプロパティは既に存在します")
+        return
+
+    # 不足プロパティを一括追加
+    props_payload = {}
+    for name, prop_type in missing.items():
+        props_payload[name] = {prop_type: {}}
+
+    _rate_limit()
+    resp = client.patch(
+        f"{NOTION_API_URL}/databases/{NOTION_DATABASE_ID}",
+        json={"properties": props_payload},
+    )
+    if resp.status_code == 200:
+        logger.info(f"評価スコアプロパティを追加: {list(missing.keys())}")
+    else:
+        logger.error(f"プロパティ追加失敗: {resp.status_code} {resp.text[:300]}")
+
+
 def mark_inactive(client: httpx.Client, page_id: str) -> None:
     """ページのステータスを Inactive に変更"""
     payload = {
@@ -298,6 +343,14 @@ def sync():
     client = httpx.Client(headers=_headers(), timeout=30)
 
     try:
+        # 評価スコアプロパティがDBに無ければ自動追加
+        if eval_scores:
+            try:
+                ensure_score_properties(client)
+            except Exception as e:
+                logger.warning(f"スコアプロパティ追加失敗: {e}。スコアなしで同期します。")
+                eval_scores = {}
+
         # Notionの既存ページを取得
         logger.info("Notionデータベースをクエリ中...")
         existing_pages = query_all_pages(client)
