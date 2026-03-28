@@ -119,8 +119,10 @@ jobs:
           git add ${{ env.WORK_DIR }}/output/buildings.csv || true
           git add 01_sapporo/07_property_evaluation/output/ || true
           git diff --cached --quiet || git commit -m "chore: update DB and caches [ci skip]"
+          git stash --include-untracked || true
           git pull --rebase || true
-          git push
+          git stash pop || true
+          git push || true
 
       # ---- Deploy to GitHub Pages ----
       - name: Setup Pages
