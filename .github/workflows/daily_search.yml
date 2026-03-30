@@ -2,8 +2,8 @@ name: Daily Rental Search
 
 on:
   schedule:
-    # 月・水・金 02:00 JST = 日・火・木 17:00 UTC
-    - cron: '0 17 * * 0,2,4'
+    # 毎日 11:00 JST = 02:00 UTC
+    - cron: '0 2 * * *'
   workflow_dispatch:
     inputs:
       sites:
