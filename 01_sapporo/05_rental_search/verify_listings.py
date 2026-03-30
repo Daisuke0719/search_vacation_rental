@@ -353,49 +353,67 @@ class VerificationScraper(BaseScraper):
                     actual_name = re.sub(r"\s*[-|｜].*(SUUMO|suumo).*$", "", title).strip()
 
             # --- 住所の取得 ---
-            # パターン1: 物件情報セクション内の「所在地」行を優先
+            # パターン1: property_view_table 内の「所在地」行を最優先
+            #   .property_view_table 内の「所在地」th と同じ行の
+            #   .property_view_table-body td から取得。
+            #   これが物件の正式な所在地であり、店舗住所と混同しない。
+            ths = await page.query_selector_all(
+                ".property_view_table th.property_view_table-title"
+            )
+            for th in ths:
+                th_text = (await th.inner_text()).strip()
+                if "所在地" in th_text:
+                    td = await th.evaluate_handle(
+                        "el => el.closest('tr')?.querySelector('td.property_view_table-body')"
+                    )
+                    if td:
+                        addr = (await td.inner_text()).strip()
+                        if re.search(r"札幌市.+区", addr):
+                            actual_address = addr
+                            break
+
+            # パターン2: 物件情報セクション内の「所在地」行（フォールバック）
             #   SUUMOのページには物件の所在地と取扱店舗の所在地がある。
             #   物件情報セクション（.property_view_detail, .secbox 等）に限定して
             #   店舗住所の誤取得を防ぐ。
-            property_sections = [
-                ".property_view_detail",
-                ".secbox",
-                "#bkdt",              # 物件詳細テーブル
-                ".data_table",        # 汎用物件テーブル
-                "table",              # 最終フォールバック
-            ]
-            for section_sel in property_sections:
-                sections = await page.query_selector_all(section_sel)
-                for section in sections:
-                    # このセクションが店舗情報セクション内かどうかチェック
-                    is_shop = await section.evaluate(
-                        """el => {
-                            const container = el.closest('.cassette_shop, .shopArea, '
-                                + '.property_view_sub, .contentsbox-shop, '
-                                + '[id*="shop"], [class*="shop"]');
-                            return !!container;
-                        }"""
-                    )
-                    if is_shop:
-                        continue
+            if not actual_address:
+                property_sections = [
+                    ".property_view_detail",
+                    ".secbox",
+                    "#bkdt",              # 物件詳細テーブル
+                    ".data_table",        # 汎用物件テーブル
+                    "table",              # 最終フォールバック
+                ]
+                for section_sel in property_sections:
+                    sections = await page.query_selector_all(section_sel)
+                    for section in sections:
+                        is_shop = await section.evaluate(
+                            """el => {
+                                const container = el.closest('.cassette_shop, .shopArea, '
+                                    + '.property_view_sub, .contentsbox-shop, '
+                                    + '[id*="shop"], [class*="shop"]');
+                                return !!container;
+                            }"""
+                        )
+                        if is_shop:
+                            continue
 
-                    ths = await section.query_selector_all("th")
-                    for th in ths:
-                        th_text = (await th.inner_text()).strip()
-                        if "所在地" in th_text:
-                            td = await th.evaluate_handle(
-                                "el => el.closest('tr')?.querySelector('td') || el.nextElementSibling"
-                            )
-                            if td:
-                                addr = (await td.inner_text()).strip()
-                                # 札幌市の住所パターンに一致するか検証
-                                if re.search(r"札幌市.+区", addr):
-                                    actual_address = addr
-                                    break
+                        ths = await section.query_selector_all("th")
+                        for th in ths:
+                            th_text = (await th.inner_text()).strip()
+                            if "所在地" in th_text:
+                                td = await th.evaluate_handle(
+                                    "el => el.closest('tr')?.querySelector('td') || el.nextElementSibling"
+                                )
+                                if td:
+                                    addr = (await td.inner_text()).strip()
+                                    if re.search(r"札幌市.+区", addr):
+                                        actual_address = addr
+                                        break
+                        if actual_address:
+                            break
                     if actual_address:
                         break
-                if actual_address:
-                    break
 
             # パターン2: detailbox内のテキスト
             if not actual_address:
