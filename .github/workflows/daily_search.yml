@@ -78,9 +78,10 @@ jobs:
       - name: Run scraping pipeline
         working-directory: ${{ env.WORK_DIR }}
         run: |
-          ARGS=""
-          if [ -n "${{ inputs.sites }}" ]; then ARGS="$ARGS --sites ${{ inputs.sites }}"; fi
-          if [ -n "${{ inputs.ward }}" ]; then ARGS="$ARGS --ward ${{ inputs.ward }}"; fi
+          # スケジュール実行時のデフォルト: suumo + 中央区
+          SITES="${{ inputs.sites || 'suumo' }}"
+          WARD="${{ inputs.ward || '中央区' }}"
+          ARGS="--sites $SITES --ward $WARD"
           if [ -n "${{ inputs.limit }}" ]; then ARGS="$ARGS --limit ${{ inputs.limit }}"; fi
           python ci_pipeline.py $ARGS
 
