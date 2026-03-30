@@ -216,10 +216,18 @@ def upsert_listing(conn: sqlite3.Connection, building_id: int, site_name: str,
     ).fetchone()
 
     if existing:
-        # 既存: last_seen_at を更新
+        # 既存: last_seen_at と詳細情報を更新
+        updates = {"last_seen_at": datetime.now().isoformat(), "is_active": 1}
+        for col in ["listing_title", "rent_price", "management_fee", "deposit",
+                     "key_money", "floor_plan", "area_sqm", "floor_number",
+                     "building_age", "nearest_station", "walk_minutes",
+                     "bath_toilet_separate"]:
+            if col in kwargs and kwargs[col] is not None:
+                updates[col] = kwargs[col]
+        set_clause = ", ".join(f"{k} = ?" for k in updates)
         conn.execute(
-            "UPDATE listings SET last_seen_at = ?, is_active = 1 WHERE id = ?",
-            (datetime.now().isoformat(), existing["id"]),
+            f"UPDATE listings SET {set_clause} WHERE id = ?",
+            list(updates.values()) + [existing["id"]],
         )
         return existing["id"], False
     else:
