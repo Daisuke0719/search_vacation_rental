@@ -81,7 +81,7 @@ def format_new_listings_message(listings: list) -> str:
 
     if len(listings) > 10:
         msg += f"...他{len(listings) - 10}件\n"
-    msg += "詳細はダッシュボードをご確認ください。"
+    msg += "▼ マップで確認\nhttps://daisuke0719.github.io/search_vacation_rental/"
 
     return msg
 
